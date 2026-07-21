@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" type="text/css" href="./visual-tests.css" />
+    <script type="text/javascript" src="./visual-tests.js"></script>
+    <script type="text/javascript" src="../../dist/smiles-drawer.dev.js"></script>
+    <title>Reaction Text Tests</title>
+    <script type="module" defer>
+      const TESTS = [
+        {
+          desc: 'The subscripts on the reaction arrow text should be fully visible.',
+          cause: 'The height calculation in SvgWrapper.writeText() didn\'t account for descenders/subscripts.',
+          status: 'passing',
+          smiles: [
+            '[Pb]>[OH3]>[Au] __{"textBelowArrow": "C₂H₆"}__',
+          ],
+          links: [
+            'https://github.com/reymond-group/smilesDrawer/issues/241'
+          ]
+        },
+
+        {
+          desc: 'Long lines of reaction arrow text should wrap at about the arrow length.',
+          cause: 'The width calculation in SvgWrapper.writeText() didn\'t account for spaces, so lines could be too long.',
+          status: 'passing',
+          smiles: [
+            '[Pb]>>[Au] __{"textAboveArrow": "p p p p p p p p p p p p p p p p p p p p p p p p p p p p p p", "textBelowArrow": "b b b b b b b b b b b b b b b b b b b b b b b b b b b b b b b b b "}__',
+          ],
+        },
+
+        {
+          desc: 'Reactions with large and/or unbalanced amounts of reaction text should render pleasantly.',
+          cause: 'The old code didn\'t take the reaction text into account when calculating the bounding box, so text could get cut off.',
+          status: 'passing',
+          smiles: [
+            '[Pb]>>[Au] __{"textAboveArrow": "three\\nlines of\\ntext"}__',
+            '[Pb]>>[Au] __{"textBelowArrow": "three\\nlines of\\ntext"}__',
+            '[Pb]>>[Au] __{"textAboveArrow": "one line of text", "textBelowArrow": "three\\nlines of\\ntext"}__',
+            '[Pb]>>[Au] __{"textAboveArrow": "three\\nlines of\\ntext", "textBelowArrow": "one line of text"}__',
+            '[Pb]>>[Au] __{"textAboveArrow": "two lines\\nof text", "textBelowArrow": "two lines\\nof text"}__',
+            '[Pb]>>[Au] __{"textAboveArrow": "three\\nlines of\\ntext", "textBelowArrow": "three\\nlines of\\ntext"}__',
+          ],
+        },
+
+        {
+          desc: 'Extra-long lines of reaction text should not be cut off (but might overlap the molecules).',
+          cause: 'ReactionDrawer used to cap the text size to the length of the reaction arrow, so long lines would be cut off.',
+          status: 'passing',
+          smiles: [
+            '[Pb]>>[Au] __{"textAboveArrow": "Humuhumunukunukuāpuaʻa", "textBelowArrow": "Lauwiliwilinukunukuʻoiʻoi"}__',
+            '[Pb]>>[Au] __{"textAboveArrow": "antidisestablishmentarianism is the first word", "textBelowArrow": "antidisestablishmentarianism is the first word"}__',
+            '[Pb]>>[Au] __{"textAboveArrow": "there is antidisestablishmentarianism in the middle", "textBelowArrow": "there is antidisestablishmentarianism in the middle"}__',
+            '[Pb]>>[Au] __{"textAboveArrow": "the last word is antidisestablishmentarianism", "textBelowArrow": "the last word is antidisestablishmentarianism"}__',
+          ],
+        }
+      ];
+
+      // await loadSmilesDrawer();
+      const container = document.getElementById('tests');
+      loadTests(container, TESTS);
+    </script>
+  </head>
+  <body>
+    <h1>Reaction Text Tests</h1>
+    <div id="tests"></div>
+  </body>
+</html>

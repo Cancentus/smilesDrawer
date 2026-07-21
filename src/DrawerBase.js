@@ -1,0 +1,3767 @@
+// @ts-check
+import ArrayHelper    from './ArrayHelper';
+import Atom           from './Atom';
+import CanvasWrapper  from './CanvasWrapper';
+import CIP            from './CIP';
+import Edge           from './Edge';
+import Graph          from './Graph';
+import Line           from './Line';
+import MathHelper     from './MathHelper';
+import Options        from './Options';
+import Ring           from './Ring';
+import RingConnection from './RingConnection';
+import SSSR           from './SSSR';
+import ThemeManager   from './ThemeManager';
+import Vector2        from './Vector2';
+import Vertex         from './Vertex';
+
+/**
+ * The main class of the application representing the smiles drawer
+ *
+ * @property {Graph} graph The graph associated with this SmilesDrawer.Drawer instance.
+ * @property {Number} ringIdCounter An internal counter to keep track of ring ids.
+ * @property {Number} ringConnectionIdCounter An internal counter to keep track of ring connection ids.
+ * @property {CanvasWrapper} canvasWrapper The CanvasWrapper associated with this SmilesDrawer.Drawer instance.
+ * @property {Number} totalOverlapScore The current internal total overlap score.
+ * @property {Object} defaultOptions The default options.
+ * @property {Object} opts The merged options.
+ * @property {Object} theme The current theme.
+ */
+export default class DrawerBase {
+    /**
+     * The constructor for the class SmilesDrawer.
+     *
+     * @param {Object} options An object containing custom values for different options. It is merged with the default options.
+     */
+    constructor(options) {
+        this.graph = null;
+        this.doubleBondConfigCount = 0;
+        this.doubleBondConfig = null;
+        this.ringIdCounter = 0;
+        this.ringConnectionIdCounter = 0;
+        this.canvasWrapper = null;
+        this.totalOverlapScore = 0;
+
+        this.defaultOptions = {
+            width:                       500,
+            height:                      500,
+            scale:                       0.0,
+            bondThickness:               1.0,
+            bondLength:                  30,
+            shortBondLength:             0.8,
+            bondSpacing:                 0.17 * 30,
+            atomVisualization:           'default',
+            isomeric:                    true,
+            debug:                       false,
+            terminalCarbons:             false,
+            showCarbons:                 'default',
+            explicitHydrogens:           true,
+            overlapSensitivity:          0.42,
+            overlapResolutionIterations: 1,
+            compactDrawing:              true,
+            fontFamily:                  'Arial, Helvetica, sans-serif',
+            fontSizeLarge:               11,
+            fontSizeSmall:               3,
+            padding:                     10.0,
+            experimentalSSSR:            false,
+            experimentalWeights:         false,
+            kkThreshold:                 0.1,
+            kkInnerThreshold:            0.1,
+            kkMaxIteration:              20000,
+            kkMaxInnerIteration:         50,
+            kkMaxEnergy:                 1e9,
+
+            weights: {
+                colormap:          null,
+                additionalPadding: 20.0,
+                sigma:             10,
+                interval:          0.0,
+                opacity:           1.0,
+            },
+
+            themes: {
+                'dark': {
+                    FOREGROUND: '#ffffff',
+                    BACKGROUND: '#141414',
+
+                    C:  '#ffffff',
+                    O:  '#e74c3c',
+                    N:  '#3498db',
+                    F:  '#27ae60',
+                    CL: '#16a085',
+                    BR: '#d35400',
+                    I:  '#8e44ad',
+                    P:  '#d35400',
+                    S:  '#f1c40f',
+                    B:  '#e67e22',
+                    SI: '#e67e22',
+                    H:  '#aaaaaa',
+                },
+                'light': {
+                    FOREGROUND: '#222222',
+                    BACKGROUND: '#ffffff',
+
+                    C:  '#222222',
+                    O:  '#e74c3c',
+                    N:  '#3498db',
+                    F:  '#27ae60',
+                    CL: '#16a085',
+                    BR: '#d35400',
+                    I:  '#8e44ad',
+                    P:  '#d35400',
+                    S:  '#f1c40f',
+                    B:  '#e67e22',
+                    SI: '#e67e22',
+                    H:  '#666666',
+                },
+                'oldschool': {
+                    FOREGROUND: '#000000',
+                    BACKGROUND: '#ffffff',
+
+                    C:  '#000000',
+                    O:  '#000000',
+                    N:  '#000000',
+                    F:  '#000000',
+                    CL: '#000000',
+                    BR: '#000000',
+                    I:  '#000000',
+                    P:  '#000000',
+                    S:  '#000000',
+                    B:  '#000000',
+                    SI: '#000000',
+                    H:  '#000000',
+                },
+                'solarized': {
+                    FOREGROUND: '#586e75',
+                    BACKGROUND: '#eee8d5',
+
+                    C:  '#586e75',
+                    O:  '#dc322f',
+                    N:  '#268bd2',
+                    F:  '#859900',
+                    CL: '#16a085',
+                    BR: '#cb4b16',
+                    I:  '#6c71c4',
+                    P:  '#d33682',
+                    S:  '#b58900',
+                    B:  '#2aa198',
+                    SI: '#2aa198',
+                    H:  '#657b83',
+                },
+                'solarized-dark': {
+                    FOREGROUND: '#93a1a1',
+                    BACKGROUND: '#073642',
+
+                    C:  '#93a1a1',
+                    O:  '#dc322f',
+                    N:  '#268bd2',
+                    F:  '#859900',
+                    CL: '#16a085',
+                    BR: '#cb4b16',
+                    I:  '#6c71c4',
+                    P:  '#d33682',
+                    S:  '#b58900',
+                    B:  '#2aa198',
+                    SI: '#2aa198',
+                    H:  '#839496',
+                },
+                'matrix': {
+                    FOREGROUND: '#678c61',
+                    BACKGROUND: '#ffffff',
+
+                    C:  '#678c61',
+                    O:  '#2fc079',
+                    N:  '#4f7e7e',
+                    F:  '#90d762',
+                    CL: '#82d967',
+                    BR: '#23755a',
+                    I:  '#409931',
+                    P:  '#c1ff8a',
+                    S:  '#faff00',
+                    B:  '#50b45a',
+                    SI: '#409931',
+                    H:  '#426644',
+                },
+                'github': {
+                    FOREGROUND: '#24292f',
+                    BACKGROUND: '#ffffff',
+
+                    C:  '#24292f',
+                    O:  '#cf222e',
+                    N:  '#0969da',
+                    F:  '#2da44e',
+                    CL: '#6fdd8b',
+                    BR: '#bc4c00',
+                    I:  '#8250df',
+                    P:  '#bf3989',
+                    S:  '#d4a72c',
+                    B:  '#fb8f44',
+                    SI: '#bc4c00',
+                    H:  '#57606a',
+                },
+                'carbon': {
+                    FOREGROUND: '#161616',
+                    BACKGROUND: '#ffffff',
+
+                    C:  '#161616',
+                    O:  '#da1e28',
+                    N:  '#0f62fe',
+                    F:  '#198038',
+                    CL: '#007d79',
+                    BR: '#fa4d56',
+                    I:  '#8a3ffc',
+                    P:  '#ff832b',
+                    S:  '#f1c21b',
+                    B:  '#8a3800',
+                    SI: '#e67e22',
+                    H:  '#525252',
+                },
+                'cyberpunk': {
+                    FOREGROUND: '#ea00d9',
+                    BACKGROUND: '#ffffff',
+
+                    C:  '#ea00d9',
+                    O:  '#ff3131',
+                    N:  '#0abdc6',
+                    F:  '#00ff9f',
+                    CL: '#00fe00',
+                    BR: '#fe9f20',
+                    I:  '#ff00ff',
+                    P:  '#fe7f00',
+                    S:  '#fcee0c',
+                    B:  '#ff00ff',
+                    SI: '#ffffff',
+                    H:  '#913cb1',
+                },
+                'gruvbox': {
+                    FOREGROUND: '#665c54',
+                    BACKGROUND: '#fbf1c7',
+
+                    C:  '#665c54',
+                    O:  '#cc241d',
+                    N:  '#458588',
+                    F:  '#98971a',
+                    CL: '#79740e',
+                    BR: '#d65d0e',
+                    I:  '#b16286',
+                    P:  '#af3a03',
+                    S:  '#d79921',
+                    B:  '#689d6a',
+                    SI: '#427b58',
+                    H:  '#7c6f64',
+                },
+                'gruvbox-dark': {
+                    FOREGROUND: '#ebdbb2',
+                    BACKGROUND: '#282828',
+
+                    C:  '#ebdbb2',
+                    O:  '#cc241d',
+                    N:  '#458588',
+                    F:  '#98971a',
+                    CL: '#b8bb26',
+                    BR: '#d65d0e',
+                    I:  '#b16286',
+                    P:  '#fe8019',
+                    S:  '#d79921',
+                    B:  '#8ec07c',
+                    SI: '#83a598',
+                    H:  '#bdae93',
+                },
+                'custom': {
+                    FOREGROUND: '#222222',
+                    BACKGROUND: '#ffffff',
+
+                    C:  '#222222',
+                    O:  '#e74c3c',
+                    N:  '#3498db',
+                    F:  '#27ae60',
+                    CL: '#16a085',
+                    BR: '#d35400',
+                    I:  '#8e44ad',
+                    P:  '#d35400',
+                    S:  '#f1c40f',
+                    B:  '#e67e22',
+                    SI: '#e67e22',
+                    H:  '#666666',
+                },
+            },
+        };
+
+        this.opts = Options.extend(true, this.defaultOptions, options);
+
+        const allowedShowCarbons = ['none', 'default', 'terminal', 'acyclic', 'all'];
+        if (allowedShowCarbons.indexOf(this.opts.showCarbons) === -1) {
+            this.opts.showCarbons = 'default';
+        }
+
+        this.opts.halfBondSpacing = this.opts.bondSpacing / 2.0;
+        this.opts.bondLengthSq = this.opts.bondLength * this.opts.bondLength;
+        this.opts.halfFontSizeLarge = this.opts.fontSizeLarge / 2.0;
+        this.opts.quarterFontSizeLarge = this.opts.fontSizeLarge / 4.0;
+        this.opts.fifthFontSizeSmall = this.opts.fontSizeSmall / 5.0;
+
+        // Set the default theme.
+        this.theme = this.opts.themes.dark;
+    }
+
+    /**
+     * Resolves carbon label display mode, including legacy `terminalCarbons` when `showCarbons` is `'default'`.
+     *
+     * @param {Object} opts Merged drawer options.
+     * @returns {'none'|'default'|'terminal'|'acyclic'|'all'}
+     */
+    static getEffectiveShowCarbonsMode(opts) {
+        const allowed = ['none', 'default', 'terminal', 'acyclic', 'all'];
+        let mode = opts.showCarbons;
+        if (mode === undefined || mode === null || allowed.indexOf(mode) === -1) {
+            mode = 'default';
+        }
+        if (mode === 'default' && opts.terminalCarbons) {
+            return 'terminal';
+        }
+        return mode;
+    }
+
+    /**
+     * Draws the parsed smiles data to a canvas element.
+     *
+     * @param {Object} data The tree returned by the smiles parser.
+     * @param {(String|HTMLCanvasElement)} target The id of the HTML canvas element the structure is drawn to - or the element itself.
+     * @param {String} themeName='dark' The name of the theme to use. Built-in themes are 'light' and 'dark'.
+     * @param {Boolean} infoOnly=false Only output info on the molecule without drawing anything to the canvas.
+     */
+    draw(data, target, themeName = 'light', infoOnly = false) {
+        this.initDraw(data, themeName, infoOnly);
+
+        if (!this.infoOnly) {
+            this.themeManager = new ThemeManager(this.opts.themes, themeName);
+            this.canvasWrapper = new CanvasWrapper(target, this.themeManager, this.opts);
+        }
+
+        if (!infoOnly) {
+            this.processGraph();
+
+            // Set the canvas to the appropriate size
+            this.canvasWrapper.scale(this.graph.vertices);
+
+            // Do the actual drawing
+            this.drawEdges(this.opts.debug);
+            this.drawVertices(this.opts.debug);
+            this.canvasWrapper.reset();
+
+            if (this.opts.debug) {
+                console.debug('DrawerBase::draw()', {
+                    graph:           this.graph,
+                    rings:           this.rings,
+                    ringConnections: this.ringConnections,
+                });
+            }
+        }
+    }
+
+    /**
+     * Returns the number of rings this edge is a part of.
+     *
+     * @param {Number} edgeId The id of an edge.
+     * @returns {Number} The number of rings the provided edge is part of.
+     */
+    edgeRingCount(edgeId) {
+        let edge = this.graph.edges[edgeId];
+        let a = this.graph.vertices[edge.sourceId];
+        let b = this.graph.vertices[edge.targetId];
+
+        return Math.min(a.value.rings.length, b.value.rings.length);
+    }
+
+    /**
+     * Returns an array containing the bridged rings associated with this  molecule.
+     *
+     * @returns {Ring[]} An array containing all bridged rings associated with this molecule.
+     */
+    getBridgedRings() {
+        return this.rings.filter(ring => ring.isBridged);
+    }
+
+    /**
+     * Returns an array containing all fused rings associated with this molecule.
+     *
+     * @returns {Ring[]} An array containing all fused rings associated with this molecule.
+     */
+    getFusedRings() {
+        return this.rings.filter(ring => ring.isFused);
+    }
+
+    /**
+     * Returns an array containing all spiros associated with this molecule.
+     *
+     * @returns {Ring[]} An array containing all spiros associated with this molecule.
+     */
+    getSpiros() {
+        return this.rings.filter(ring => ring.isSpiro);
+    }
+
+    /**
+     * Returns a string containing a semicolon and new-line separated list of ring properties: Id; Members Count; Neighbours Count; IsSpiro; IsFused; IsBridged; Ring Count (subrings of bridged rings)
+     *
+     * @returns {String} A string as described in the method description.
+     */
+    printRingInfo() {
+        let result = '';
+        for (let i = 0; i < this.rings.length; i++) {
+            const ring = this.rings[i];
+
+            result += ring.id + ';';
+            result += ring.members.length + ';';
+            result += ring.neighbours.length + ';';
+            result += ring.isSpiro ? 'true;' : 'false;';
+            result += ring.isFused ? 'true;' : 'false;';
+            result += ring.isBridged ? 'true;' : 'false;';
+            result += ring.rings.length + ';';
+            result += '\n';
+        }
+
+        return result;
+    }
+
+    /**
+     * Rotates the drawing to make the widest dimension horizontal.
+     */
+    rotateDrawing() {
+    // Rotate the vertices to make the molecule align horizontally
+    // Find the longest distance
+        let a = 0;
+        let b = 0;
+        let maxDist = 0;
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let vertexA = this.graph.vertices[i];
+
+            if (!vertexA.value.isDrawn) {
+                continue;
+            }
+
+            for (let j = i + 1; j < this.graph.vertices.length; j++) {
+                let vertexB = this.graph.vertices[j];
+
+                if (!vertexB.value.isDrawn) {
+                    continue;
+                }
+
+                let dist = vertexA.position.distanceSq(vertexB.position);
+
+                if (dist > maxDist) {
+                    maxDist = dist;
+                    a = i;
+                    b = j;
+                }
+            }
+        }
+
+        let angle = -Vector2.subtract(this.graph.vertices[a].position, this.graph.vertices[b].position).angle();
+
+        if (!isNaN(angle)) {
+            // Round to 30 degrees
+            let remainder = angle % 0.523599;
+
+            // Round either up or down in 30 degree steps
+            if (remainder < 0.2617995) {
+                angle = angle - remainder;
+            }
+            else {
+                angle += 0.523599 - remainder;
+            }
+
+            // Finally, rotate everything
+            for (let i = 0; i < this.graph.vertices.length; i++) {
+                if (i === b) {
+                    continue;
+                }
+
+                this.graph.vertices[i].position.rotateAround(angle, this.graph.vertices[b].position);
+            }
+
+            for (let i = 0; i < this.rings.length; i++) {
+                this.rings[i].center.rotateAround(angle, this.graph.vertices[b].position);
+            }
+        }
+    }
+
+    /**
+     * Returns the total overlap score of the current molecule.
+     *
+     * @returns {Number} The overlap score.
+     */
+    getTotalOverlapScore() {
+        return this.totalOverlapScore;
+    }
+
+    /**
+     * Returns the ring count of the current molecule.
+     *
+     * @returns {Number} The ring count.
+     */
+    getRingCount() {
+        return this.rings.length;
+    }
+
+    /**
+     * Checks whether or not the current molecule  a bridged ring.
+     *
+     * @returns {Boolean} A boolean indicating whether or not the current molecule  a bridged ring.
+     */
+    hasBridgedRing() {
+        return this.bridgedRing;
+    }
+
+    /**
+     * Returns the number of heavy atoms (non-hydrogen) in the current molecule.
+     *
+     * @returns {Number} The heavy atom count.
+     */
+    getHeavyAtomCount() {
+        let hac = 0;
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            if (this.graph.vertices[i].value.element !== 'H') {
+                hac++;
+            }
+        }
+
+        return hac;
+    }
+
+    /**
+     * Returns the molecular formula of the loaded molecule as a string.
+     *
+     * @returns {String} The molecular formula.
+     */
+    getMolecularFormula(data = null) {
+        let molecularFormula = '';
+        let counts = new Map();
+
+        let graph = data === null ? this.graph : new Graph(data, this.opts.isomeric);
+
+        // Initialize element count
+        for (let i = 0; i < graph.vertices.length; i++) {
+            let atom = graph.vertices[i].value;
+
+            const a = counts.get(atom.element) || 0;
+            counts.set(atom.element, a + 1);
+
+            const hydrogens = atom.countImplicitHydrogens();
+            if (hydrogens) {
+                const h = counts.get('H') || 0;
+                counts.set('H', h + hydrogens);
+            }
+        }
+
+        if (counts.has('C')) {
+            let count = counts.get('C');
+            molecularFormula += 'C' + (count > 1 ? count : '');
+            counts.delete('C');
+        }
+
+        if (counts.has('H')) {
+            let count = counts.get('H');
+            molecularFormula += 'H' + (count > 1 ? count : '');
+            counts.delete('H');
+        }
+
+        // TODO: Can we not get keys from counts instead?
+        let elements = Object.keys(Atom.atomicNumbers).sort();
+
+        elements.map((e) => {
+            if (counts.has(e)) {
+                let count = counts.get(e);
+                molecularFormula += e + (count > 1 ? count : '');
+            }
+        });
+
+        return molecularFormula;
+    }
+
+    /**
+     * Returns the type of the ringbond (e.g. '=' for a double bond). The ringbond represents the break in a ring introduced when creating the MST. If the two vertices supplied as arguments are not part of a common ringbond, the method returns null.
+     *
+     * @param {Vertex} vertexA A vertex.
+     * @param {Vertex} vertexB A vertex.
+     * @returns {(String|null)} Returns the ringbond type or null, if the two supplied vertices are not connected by a ringbond.
+     */
+    getRingbondType(vertexA, vertexB) {
+    // Checks whether the two vertices are the ones connecting the ring
+    // and what the bond type should be.
+        if (vertexA.value.getRingbondCount() < 1 || vertexB.value.getRingbondCount() < 1) {
+            return null;
+        }
+
+        for (let i = 0; i < vertexA.value.ringbonds.length; i++) {
+            for (let j = 0; j < vertexB.value.ringbonds.length; j++) {
+                // if(i != j) continue;
+                if (vertexA.value.ringbonds[i].id === vertexB.value.ringbonds[j].id) {
+                    // If the bonds are equal, it doesn't matter which bond is returned.
+                    // if they are not equal, return the one that is not the default ('-')
+                    if (vertexA.value.ringbonds[i].bondType === '-') {
+                        return vertexB.value.ringbonds[j].bond;
+                    }
+                    else {
+                        return vertexA.value.ringbonds[i].bond;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    initDraw(data, themeName, infoOnly, highlight_atoms) {
+        this.data = data;
+        this.infoOnly = infoOnly;
+
+        this.ringIdCounter = 0;
+        this.ringConnectionIdCounter = 0;
+
+        this.graph = new Graph(data, this.opts.isomeric);
+        this.rings = [];
+        this.ringConnections = [];
+
+        this.originalRings = [];
+        this.originalRingConnections = [];
+
+        this.bridgedRing = false;
+
+        // Reset those, in case the previous drawn SMILES had a dangling \ or /
+        this.doubleBondConfigCount = null;
+        this.doubleBondConfig = null;
+
+        this.highlight_atoms = highlight_atoms;
+
+        this.initRings();
+        this.initHydrogens();
+    }
+
+    processGraph() {
+        this.position();
+        this.fixDoubleBondStereo();
+
+        // Restore the ring information (removes bridged rings and replaces them with the original, multiple, rings)
+        this.restoreRingInformation();
+
+        // Atoms bonded to the same ring atom
+        this.resolvePrimaryOverlaps();
+
+        let overlapScore = this.getOverlapScore();
+
+        this.totalOverlapScore = this.getOverlapScore().total;
+
+        for (let o = 0; o < this.opts.overlapResolutionIterations; o++) {
+            for (let i = 0; i < this.graph.edges.length; i++) {
+                let edge = this.graph.edges[i];
+                if (this.isEdgeRotatable(edge)) {
+                    let subTreeDepthA = this.graph.getTreeDepth(edge.sourceId, edge.targetId);
+                    let subTreeDepthB = this.graph.getTreeDepth(edge.targetId, edge.sourceId);
+
+                    // Only rotate the shorter subtree
+                    let a = edge.targetId;
+                    let b = edge.sourceId;
+
+                    if (subTreeDepthA > subTreeDepthB) {
+                        a = edge.sourceId;
+                        b = edge.targetId;
+                    }
+
+                    let subTreeOverlap = this.getSubtreeOverlapScore(b, a, overlapScore.vertexScores);
+                    if (subTreeOverlap.value > this.opts.overlapSensitivity) {
+                        let vertexA = this.graph.vertices[a];
+                        let vertexB = this.graph.vertices[b];
+                        let neighboursB = vertexB.getNeighbours(a);
+
+                        if (neighboursB.length === 1) {
+                            let neighbour = this.graph.vertices[neighboursB[0]];
+                            let angle = neighbour.position.getRotateAwayFromAngle(vertexA.position, vertexB.position, MathHelper.toRad(120));
+
+                            this.rotateSubtree(neighbour.id, vertexB.id, angle, vertexB.position);
+                            // If the new overlap is bigger, undo change
+                            let newTotalOverlapScore = this.getOverlapScore().total;
+
+                            if (newTotalOverlapScore > this.totalOverlapScore) {
+                                this.rotateSubtree(neighbour.id, vertexB.id, -angle, vertexB.position);
+                            }
+                            else {
+                                this.totalOverlapScore = newTotalOverlapScore;
+                            }
+                        }
+                        else if (neighboursB.length === 2) {
+                            // Switch places / sides
+                            // Here we only try to rotate a simple ring substituent.
+                            // If both ends of the bond are already inside rings, this code gives up.
+                            // That means it will not help with a ring attached to another ring
+                            // layouts, which is why a later dedicated pass was added
+                            if (vertexB.value.rings.length !== 0 && vertexA.value.rings.length !== 0) {
+                                continue;
+                            }
+
+                            let neighbourA = this.graph.vertices[neighboursB[0]];
+                            let neighbourB = this.graph.vertices[neighboursB[1]];
+
+                            if (neighbourA.value.rings.length === 1 && neighbourB.value.rings.length === 1) {
+                                // We only want the case where these two neighbours belong to the same ring.
+                                // In practice, this means vertexB is acting like the attachment point for one ring.
+                                if (neighbourA.value.rings[0] !== neighbourB.value.rings[0]) {
+                                    continue;
+                                }
+
+                                let ringId = neighbourA.value.rings[0];
+                                // only handle rings that have a single
+                                // connection to the rest of the structure. If the ring has multiple exits,
+                                // rotating it here becomes much less predictable
+                                if (this.getRingExternalConnectionCount(ringId) !== 1) {
+                                    continue;
+                                }
+
+                                let bestAngle = 0.0;
+                                let bestOverlap = this.totalOverlapScore;
+                                let ring = this.getRing(ringId);
+                                let stepAngle = MathHelper.centralAngle(ring.getSize());
+                                let maxSteps = Math.max(1, Math.floor(ring.getSize() / 2));
+
+                                // TODO: speedup by rotating by stepAngle each iteration instead
+                                // of resetting to origin and rotating by step*stepAngle. Then do
+                                // one final rotation to the best position. (See PR #237 review.)
+                                for (let step = 1; step <= maxSteps; step++) {
+                                    let angle = stepAngle * step;
+
+                                    // Try roatation in one direction
+                                    this.rotateSubtree(vertexB.id, vertexA.id, angle, vertexB.position);
+
+                                    let newTotalOverlapScore = this.getOverlapScore().total;
+                                    if (newTotalOverlapScore < bestOverlap) {
+                                        bestOverlap = newTotalOverlapScore;
+                                        bestAngle = angle;
+                                    }
+
+                                    // Try in the other direction (twice to revert previous one)
+                                    this.rotateSubtree(vertexB.id, vertexA.id, -angle, vertexB.position);
+                                    this.rotateSubtree(vertexB.id, vertexA.id, -angle, vertexB.position);
+
+                                    newTotalOverlapScore = this.getOverlapScore().total;
+                                    if (newTotalOverlapScore < bestOverlap) {
+                                        bestOverlap = newTotalOverlapScore;
+                                        bestAngle = -angle;
+                                    }
+
+                                    // restore the original before testing the next angle.
+                                    this.rotateSubtree(vertexB.id, vertexA.id, angle, vertexB.position);
+                                }
+
+                                // only keep a rotation if we actually found an orientation that improved
+                                // the global overlap score
+                                if (bestAngle !== 0.0) {
+                                    this.rotateSubtree(vertexB.id, vertexA.id, bestAngle, vertexB.position);
+                                    this.totalOverlapScore = bestOverlap;
+                                }
+                            }
+                            else if (neighbourA.value.rings.length !== 0 || neighbourB.value.rings.length !== 0) {
+                                continue;
+                            }
+                            else {
+                                let angleA = neighbourA.position.getRotateAwayFromAngle(vertexA.position, vertexB.position, MathHelper.toRad(120));
+                                let angleB = neighbourB.position.getRotateAwayFromAngle(vertexA.position, vertexB.position, MathHelper.toRad(120));
+
+                                this.rotateSubtree(neighbourA.id, vertexB.id, angleA, vertexB.position);
+                                this.rotateSubtree(neighbourB.id, vertexB.id, angleB, vertexB.position);
+
+                                let newTotalOverlapScore = this.getOverlapScore().total;
+
+                                if (newTotalOverlapScore > this.totalOverlapScore) {
+                                    this.rotateSubtree(neighbourA.id, vertexB.id, -angleA, vertexB.position);
+                                    this.rotateSubtree(neighbourB.id, vertexB.id, -angleB, vertexB.position);
+                                }
+                                else {
+                                    this.totalOverlapScore = newTotalOverlapScore;
+                                }
+                            }
+                        }
+
+                        overlapScore = this.getOverlapScore();
+                    }
+                }
+            }
+        }
+
+        this.resolveSecondaryOverlaps(overlapScore.scores);
+        this.resolveRigidRingOverlaps();
+        overlapScore = this.getOverlapScore();
+        this.resolveSecondaryOverlaps(overlapScore.scores);
+
+        if (this.opts.isomeric) {
+            this.annotateStereochemistry();
+        }
+
+        // Initialize pseudo elements or shortcuts
+        if (this.opts.compactDrawing && this.opts.atomVisualization === 'default') {
+            this.initPseudoElements();
+        }
+
+        this.rotateDrawing();
+    }
+
+    /**
+     * Inverts an E/Z bond marker; leaves other bonds unchanged.
+     *
+     * @param {?string} bond - The bond marker to invert.
+     * @returns The bond marker, inverted if it was an E/Z bond.
+     */
+    static flipEZ(bond) {
+        if (bond === '/')  return '\\';
+        if (bond === '\\') return '/';
+        return bond;
+    }
+
+    /**
+     * Gets the bond type of a ringbond given the bond markers at either end.
+     *
+     * This is necessary because some code elsewhere (Graph?) sets these markers
+     * to '-' if they aren't specified.  This returns the first bond that differs
+     * from the default.  It flips E/Z specification of the reverse bond (if any)
+     * to make sure the stereochemistry is correct.
+     *
+     * @param {?string} fwd - The forward bond marker.
+     * @param {?string} rev - The reverse bond marker.
+     * @returns A bond marker, with correct E/Z stereochemistry.
+     */
+    static getRingbondType(fwd, rev) {
+        if (fwd && fwd !== '-') return fwd;
+        if (rev && rev !== '-') return DrawerBase.flipEZ(rev);
+        return '-';
+    }
+
+    /**
+     * Initializes rings and ringbonds for the current molecule.
+     */
+    initRings() {
+        let openBonds = new Map();
+
+        // Close the open ring bonds (spanning tree -> graph)
+        for (let i = this.graph.vertices.length - 1; i >= 0; i--) {
+            let vertex = this.graph.vertices[i];
+
+            if (vertex.value.ringbonds.length === 0) {
+                continue;
+            }
+
+            for (let j = 0; j < vertex.value.ringbonds.length; j++) {
+                let ringbondId = vertex.value.ringbonds[j].id;
+                let ringbondBond = vertex.value.ringbonds[j].bond;
+
+                // If the other ringbond id has not been discovered,
+                // add it to the open bonds map and continue.
+                // if the other ringbond id has already been discovered,
+                // create a bond between the two atoms.
+                if (!openBonds.has(ringbondId)) {
+                    openBonds.set(ringbondId, [vertex.id, ringbondBond]);
+                }
+                else {
+                    let sourceVertexId = vertex.id;
+                    let targetVertexId = openBonds.get(ringbondId)[0];
+                    let targetRingbondBond = openBonds.get(ringbondId)[1];
+                    let edge = new Edge(sourceVertexId, targetVertexId, 1);
+
+                    // The new edge goes from this vertex to the other vertex,
+                    // so the bond from openBonds is the "reverse" bond.
+                    edge.setBondType(DrawerBase.getRingbondType(ringbondBond, targetRingbondBond));
+
+                    let edgeId = this.graph.addEdge(edge);
+                    let targetVertex = this.graph.vertices[targetVertexId];
+
+                    vertex.addRingbondChild(targetVertexId, j);
+                    vertex.value.addNeighbouringElement(targetVertex.value.element);
+
+                    // Find the ringbond index on the TARGET vertex (not the source)
+                    let targetRingbondIdx = 0;
+                    for (let k = 0; k < targetVertex.value.ringbonds.length; k++) {
+                        if (targetVertex.value.ringbonds[k].id === ringbondId) {
+                            targetRingbondIdx = k;
+                            break;
+                        }
+                    }
+                    targetVertex.addRingbondChild(sourceVertexId, targetRingbondIdx);
+                    targetVertex.value.addNeighbouringElement(vertex.value.element);
+                    vertex.edges.push(edgeId);
+                    targetVertex.edges.push(edgeId);
+
+                    openBonds.delete(ringbondId);
+                }
+            }
+        }
+
+        // Get the rings in the graph (the SSSR)
+        let rings = SSSR.getRings(this.graph, this.opts.experimentalSSSR);
+
+        if (rings === null || rings.length === 0) {
+            return;
+        }
+
+        for (let i = 0; i < rings.length; i++) {
+            let ringVertices = [...rings[i]];
+            let ringId = this.addRing(new Ring(ringVertices));
+
+            // Add the ring to the atoms
+            for (let j = 0; j < ringVertices.length; j++) {
+                this.graph.vertices[ringVertices[j]].value.rings.push(ringId);
+            }
+        }
+
+        // Find connection between rings
+        // Check for common vertices and create ring connections. This is a bit
+        // ugly, but the ringcount is always fairly low (< 100)
+        for (let i = 0; i < this.rings.length - 1; i++) {
+            for (let j = i + 1; j < this.rings.length; j++) {
+                let a = this.rings[i];
+                let b = this.rings[j];
+                let ringConnection = new RingConnection(a, b);
+
+                // If there are no vertices in the ring connection, then there
+                // is no ring connection
+                if (ringConnection.vertices.size > 0) {
+                    this.addRingConnection(ringConnection);
+                }
+            }
+        }
+
+        // Add neighbours to the rings
+        for (let i = 0; i < this.rings.length; i++) {
+            let ring = this.rings[i];
+            ring.neighbours = RingConnection.getNeighbours(this.ringConnections, ring.id);
+        }
+
+        // Anchor the ring to one of it's members, so that the ring center will always
+        // be tied to a single vertex when doing repositionings
+        for (let i = 0; i < this.rings.length; i++) {
+            let ring = this.rings[i];
+            this.graph.vertices[ring.members[0]].value.addAnchoredRing(ring.id);
+        }
+
+        this.markCageRingSystems();
+
+        // Backup the ring information to restore after placing the bridged ring.
+        // This is needed in order to identify aromatic rings and stuff like this in
+        // rings that are member of the superring.
+        this.backupRingInformation();
+
+        // Replace rings contained by a larger bridged ring with a bridged ring
+        while (this.rings.length > 0) {
+            let id = -1;
+            for (let i = 0; i < this.rings.length; i++) {
+                let ring = this.rings[i];
+
+                if (this.isPartOfBridgedRing(ring.id) && !ring.isBridged) {
+                    id = ring.id;
+                }
+            }
+
+            if (id === -1) {
+                break;
+            }
+
+            let ring = this.getRing(id);
+
+            let involvedRings = this.getBridgedRingRings(ring.id);
+
+            this.bridgedRing = true;
+            this.createBridgedRing(involvedRings, ring.members[0]);
+            this.bridgedRing = false;
+
+            // Remove the rings
+            for (let i = 0; i < involvedRings.length; i++) {
+                this.removeRing(involvedRings[i]);
+            }
+        }
+    }
+
+    initHydrogens() {
+        if (this.opts.explicitHydrogens) {
+            return;
+        }
+
+        for (const vertex of this.graph.vertices) {
+            if (vertex.value.element !== 'H' || vertex.neighbours.length !== 1) {
+                continue;
+            }
+
+            const neighbour = this.graph.vertices[vertex.neighbours[0]];
+            if (!neighbour.value.isStereoCenter
+                || (neighbour.value.rings.length < 2 && !neighbour.value.bridgedRing)
+                || (neighbour.value.bridgedRing && neighbour.value.originalRings.length < 2)
+            ) {
+                // This vertex can be safely hidden.
+                vertex.value.isDrawn = false;
+            }
+        }
+    }
+
+    /**
+     * Returns all rings connected by bridged bonds starting from the ring with the supplied ring id.
+     *
+     * @param {Number} ringId A ring id.
+     * @returns {Number[]} An array containing all ring ids of rings part of a bridged ring system.
+     */
+    getBridgedRingRings(ringId) {
+        let involvedRings = [];
+
+        let recurse = (r) => {
+            let ring = this.getRing(r);
+
+            involvedRings.push(r);
+
+            for (let i = 0; i < ring.neighbours.length; i++) {
+                let n = ring.neighbours[i];
+
+                if (involvedRings.indexOf(n) === -1 && n !== r && RingConnection.isBridge(this.ringConnections, this.graph.vertices, r, n)) {
+                    recurse(n);
+                }
+            }
+        };
+
+        recurse(ringId);
+
+        // recurse() is only used for BRIDGED connections (rings that share 3+ atoms)
+        // but FUSED rings (exactly 2 shared atoms, like in naphtahlene) are left out.
+        // THis causes issues if the bridged system is laid out by KK. If a fused ring
+        // shares 2 atoms with the bridges system but isn't included, those 2 atoms
+        // get positioned by KK, while the rest of the fused rings gets positioned by the
+        // normal layout algorithm. Both algos fight producing distored drawings
+        // TODO: change recurse() by making it always recurse when there are two or more
+        // shared vertices and use a Set instead of indexOf on an array.
+        // (See PR#237 review)
+        let changed = true;
+        while (changed) {
+            changed = false;
+            for (let i = 0; i < this.ringConnections.length; i++) {
+                let rc = this.ringConnections[i];
+                if (rc.vertices.size < 2) continue;
+                let hasFirst = involvedRings.indexOf(rc.firstRingId) !== -1;
+                let hasSecond = involvedRings.indexOf(rc.secondRingId) !== -1;
+
+                if (hasFirst && !hasSecond) {
+                    involvedRings.push(rc.secondRingId);
+                    changed = true;
+                }
+                else if (hasSecond && !hasFirst) {
+                    involvedRings.push(rc.firstRingId);
+                    changed = true;
+                }
+            }
+        }
+
+        return ArrayHelper.unique(involvedRings);
+    }
+
+    /**
+     * Checks whether or not a ring is part of a bridged ring.
+     *
+     * @param {Number} ringId A ring id.
+     * @returns {Boolean} A boolean indicating whether or not the supplied ring (by id) is part of a bridged ring system.
+     */
+    isPartOfBridgedRing(ringId) {
+        for (let i = 0; i < this.ringConnections.length; i++) {
+            if (this.ringConnections[i].containsRing(ringId) && this.ringConnections[i].isBridge(this.graph.vertices)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Detect cage-like fused ring systems and route them through bridged-ring
+     * layout.
+     *
+     * logic:
+     * Check one fused ring component at a time. Rings are fused when they
+     * share two or more atoms.
+     *  A cage should have several rings fused on three or more sides.
+     * Every atom in the cage skeleton should have three neighbours inside
+     * the same fused component.
+     * Most ring edges should be shared by two rings. A small boundary is
+     *allowed because the SSSR can miss one face of a cage (see cubane example)
+     * This rejects polycyclic aromatic hydrocarbons (PAHs) which are an exception to the rule
+     *  check https://en.wikipedia.org/wiki/Polycyclic_aromatic_hydrocarbon
+     * PAHs have outer atoms with only two neighbours inside the fused system.
+     */
+    markCageRingSystems() {
+        // Count fused connections (vertices.size >= 2) per ring and build a
+        // ring -> fused-neighbour adjacency list.
+        let fusedCount = new Map();
+        let fusedNeighbours = new Map();
+        for (let i = 0; i < this.rings.length; i++) {
+            fusedCount.set(this.rings[i].id, 0);
+            fusedNeighbours.set(this.rings[i].id, []);
+        }
+
+        for (let i = 0; i < this.ringConnections.length; i++) {
+            let rc = this.ringConnections[i];
+            if (rc.vertices.size < 2) continue;
+            fusedCount.set(rc.firstRingId, fusedCount.get(rc.firstRingId) + 1);
+            fusedCount.set(rc.secondRingId, fusedCount.get(rc.secondRingId) + 1);
+            fusedNeighbours.get(rc.firstRingId).push(rc.secondRingId);
+            fusedNeighbours.get(rc.secondRingId).push(rc.firstRingId);
+        }
+
+        let visited = new Set();
+        let cagedRings = new Set();
+
+        for (let i = 0; i < this.rings.length; i++) {
+            let rootId = this.rings[i].id;
+            if (visited.has(rootId)) continue;
+
+            let component = [];
+            let queue = [rootId];
+            visited.add(rootId);
+            while (queue.length > 0) {
+                let cur = queue.shift();
+                component.push(cur);
+                let neighbours = fusedNeighbours.get(cur);
+                for (let j = 0; j < neighbours.length; j++) {
+                    let n = neighbours[j];
+                    if (!visited.has(n)) {
+                        visited.add(n);
+                        queue.push(n);
+                    }
+                }
+            }
+
+            if (this.isCageRingComponent(component, fusedCount)) {
+                for (let j = 0; j < component.length; j++) {
+                    cagedRings.add(component[j]);
+                }
+            }
+        }
+
+        if (cagedRings.size === 0) return;
+
+        // Force every fused connection internal to a caged component to act
+        // as a bridge so RingConnection.isBridge() reports true and the
+        // bridged-ring collapse picks it up.
+        for (let i = 0; i < this.ringConnections.length; i++) {
+            let rc = this.ringConnections[i];
+            if (rc.vertices.size < 2) continue;
+            if (cagedRings.has(rc.firstRingId) && cagedRings.has(rc.secondRingId)) {
+                rc.isForcedBridge = true;
+            }
+        }
+    }
+
+    /**
+     * Check whether a fused ring component looks like a closed cage.
+     *
+     * @param {Number[]} ringIds Ring ids in one fused component.
+     * @param {Map<Number, Number>} fusedCount Number of fused neighbours per ring.
+     * @returns {Boolean} Whether this component should use bridged-ring layout.
+     */
+    isCageRingComponent(ringIds, fusedCount) {
+        let seedCount = 0;
+        for (let i = 0; i < ringIds.length; i++) {
+            if (fusedCount.get(ringIds[i]) >= 3) {
+                seedCount++;
+            }
+        }
+
+        if (seedCount < 2) {
+            return false;
+        }
+
+        let stats = this.getRingSystemStats(ringIds);
+
+        return (
+            stats.atomCount > 0
+            && stats.edgeCount > 0
+            && stats.nonCageAtomCount === 0
+            && stats.boundaryEdgeRatio <= 0.5
+        );
+    }
+
+    /**
+     * Collect simple graph stats for a fused ring component.
+     *
+     * @param {Number[]} ringIds Ring ids in one fused component.
+     * @returns {Object} Ring-system atom and edge stats.
+     */
+    getRingSystemStats(ringIds) {
+        let ringMemberSets = new Map();
+        let atoms = new Set();
+        let degreeByAtom = new Map();
+
+        for (let i = 0; i < ringIds.length; i++) {
+            let ring = this.getRing(ringIds[i]);
+            let members = new Set(ring.members);
+            ringMemberSets.set(ringIds[i], members);
+
+            for (let j = 0; j < ring.members.length; j++) {
+                atoms.add(ring.members[j]);
+                degreeByAtom.set(ring.members[j], 0);
+            }
+        }
+
+        let edgeCount = 0;
+        let boundaryEdgeCount = 0;
+
+        for (let i = 0; i < this.graph.edges.length; i++) {
+            let edge = this.graph.edges[i];
+            if (!atoms.has(edge.sourceId) || !atoms.has(edge.targetId)) {
+                continue;
+            }
+
+            let ringCount = 0;
+            for (let j = 0; j < ringIds.length; j++) {
+                let members = ringMemberSets.get(ringIds[j]);
+                if (members.has(edge.sourceId) && members.has(edge.targetId)) {
+                    ringCount++;
+                }
+            }
+
+            if (ringCount === 0) {
+                continue;
+            }
+
+            edgeCount++;
+            degreeByAtom.set(edge.sourceId, degreeByAtom.get(edge.sourceId) + 1);
+            degreeByAtom.set(edge.targetId, degreeByAtom.get(edge.targetId) + 1);
+
+            if (ringCount === 1) {
+                boundaryEdgeCount++;
+            }
+        }
+
+        let nonCageAtomCount = 0;
+        for (let degree of degreeByAtom.values()) {
+            if (degree !== 3) {
+                nonCageAtomCount++;
+            }
+        }
+
+        return {
+            atomCount:         atoms.size,
+            edgeCount:         edgeCount,
+            nonCageAtomCount:  nonCageAtomCount,
+            boundaryEdgeRatio: edgeCount === 0 ? 1 : boundaryEdgeCount / edgeCount,
+        };
+    }
+
+    /**
+     * Creates a bridged ring.
+     *
+     * @param {Number[]} ringIds An array of ids of rings involved in the bridged ring.
+     * @param {Number} _sourceVertexId The vertex id to start the bridged ring discovery from (UNUSED).
+     * @returns {Ring} The bridged ring.
+     */
+    createBridgedRing(ringIds, _sourceVertexId) {
+        let ringMembers = new Set();
+        let vertices = new Set();
+        let neighbours = new Set();
+
+        for (let i = 0; i < ringIds.length; i++) {
+            let ring = this.getRing(ringIds[i]);
+            ring.isPartOfBridged = true;
+
+            for (let j = 0; j < ring.members.length; j++) {
+                vertices.add(ring.members[j]);
+            }
+
+            for (let j = 0; j < ring.neighbours.length; j++) {
+                let id = ring.neighbours[j];
+
+                if (ringIds.indexOf(id) === -1) {
+                    neighbours.add(ring.neighbours[j]);
+                }
+            }
+        }
+
+        // A vertex is part of the bridged ring if it only belongs to
+        // one of the rings (or to another ring
+        // which is not part of the bridged ring).
+        let leftovers = new Set();
+
+        for (let id of vertices) {
+            let vertex = this.graph.vertices[id];
+            let intersection = ArrayHelper.intersection(ringIds, vertex.value.rings);
+
+            if (vertex.value.rings.length === 1 || intersection.length === 1) {
+                ringMembers.add(vertex.id);
+            }
+            else {
+                leftovers.add(vertex.id);
+            }
+        }
+
+        // Vertices can also be part of multiple rings and lay on the bridged ring,
+        // however, they have to have at least two neighbours that are not part of
+        // two rings
+        let insideRing = [];
+
+        for (let id of leftovers) {
+            let vertex = this.graph.vertices[id];
+            let onRing = false;
+
+            for (let j = 0; j < vertex.edges.length; j++) {
+                if (this.edgeRingCount(vertex.edges[j]) === 1) {
+                    onRing = true;
+                }
+            }
+
+            if (onRing) {
+                vertex.value.isBridgeNode = true;
+                ringMembers.add(vertex.id);
+            }
+            else {
+                vertex.value.isBridge = true;
+                insideRing.push(vertex.id);
+                ringMembers.add(vertex.id);
+            }
+        }
+
+        // Create the ring
+        let ring = new Ring([...ringMembers]);
+        this.addRing(ring);
+
+        ring.isBridged = true;
+        ring.insiders = insideRing;
+        ring.neighbours = [...neighbours];
+
+        for (let i = 0; i < ringIds.length; i++) {
+            ring.rings.push(this.getRing(ringIds[i]).clone());
+        }
+
+        for (let i = 0; i < ring.members.length; i++) {
+            this.graph.vertices[ring.members[i]].value.bridgedRing = ring.id;
+        }
+
+        // Atoms inside the ring are no longer part of a ring but are now
+        // associated with the bridged ring
+        for (let i = 0; i < insideRing.length; i++) {
+            let vertex = this.graph.vertices[insideRing[i]];
+            vertex.value.rings = [];
+        }
+
+        // Remove former rings from members of the bridged ring and add the bridged ring
+        for (let id of ringMembers) {
+            let vertex = this.graph.vertices[id];
+            vertex.value.rings = ArrayHelper.removeAll(vertex.value.rings, ringIds);
+            vertex.value.rings.push(ring.id);
+        }
+
+        // Remove all the ring connections no longer used
+        for (let i = 0; i < ringIds.length; i++) {
+            for (let j = i + 1; j < ringIds.length; j++) {
+                this.removeRingConnectionsBetween(ringIds[i], ringIds[j]);
+            }
+        }
+
+        // Update the ring connections and add this ring to the neighbours neighbours
+        for (let id of neighbours) {
+            let connections = this.getRingConnections(id, ringIds);
+
+            for (let j = 0; j < connections.length; j++) {
+                this.getRingConnection(connections[j]).updateOther(ring.id, id);
+            }
+
+            this.getRing(id).neighbours.push(ring.id);
+        }
+
+        return ring;
+    }
+
+    /**
+     * Checks whether or not two vertices are in the same ring.
+     *
+     * @param {Vertex} vertexA A vertex.
+     * @param {Vertex} vertexB A vertex.
+     * @returns {Boolean} A boolean indicating whether or not the two vertices are in the same ring.
+     */
+    areVerticesInSameRing(vertexA, vertexB) {
+    // This is a little bit lighter (without the array and push) than
+    // getCommonRings().length > 0
+        for (let i = 0; i < vertexA.value.rings.length; i++) {
+            for (let j = 0; j < vertexB.value.rings.length; j++) {
+                if (vertexA.value.rings[i] === vertexB.value.rings[j]) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Returns an array of ring ids shared by both vertices.
+     *
+     * @param {Vertex} vertexA A vertex.
+     * @param {Vertex} vertexB A vertex.
+     * @returns {Number[]} An array of ids of rings shared by the two vertices.
+     */
+    getCommonRings(vertexA, vertexB) {
+        let commonRings = [];
+
+        for (let i = 0; i < vertexA.value.rings.length; i++) {
+            for (let j = 0; j < vertexB.value.rings.length; j++) {
+                if (vertexA.value.rings[i] == vertexB.value.rings[j]) {
+                    commonRings.push(vertexA.value.rings[i]);
+                }
+            }
+        }
+
+        return commonRings;
+    }
+
+    /**
+     * Returns the aromatic or largest ring shared by the two vertices.
+     *
+     * @param {Vertex} vertexA A vertex.
+     * @param {Vertex} vertexB A vertex.
+     * @returns {(Ring|null)} If an aromatic common ring exists, that ring, else the largest (non-aromatic) ring, else null.
+     */
+    getLargestOrAromaticCommonRing(vertexA, vertexB) {
+        let commonRings = this.getCommonRings(vertexA, vertexB);
+        let maxSize = 0;
+        let largestCommonRing = null;
+
+        for (let i = 0; i < commonRings.length; i++) {
+            let ring = this.getRing(commonRings[i]);
+            let size = ring.getSize();
+
+            if (ring.isBenzeneLike(this.graph.vertices)) {
+                return ring;
+            }
+            else if (size > maxSize) {
+                maxSize = size;
+                largestCommonRing = ring;
+            }
+        }
+
+        return largestCommonRing;
+    }
+
+    /**
+     * Returns an array of vertices positioned at a specified location.
+     *
+     * @param {Vector2} position The position to search for vertices.
+     * @param {Number} radius The radius within to search.
+     * @param {Number} excludeVertexId A vertex id to be excluded from the search results.
+     * @returns {Number[]} An array containing vertex ids in a given location.
+     */
+    getVerticesAt(position, radius, excludeVertexId) {
+        let locals = [];
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let vertex = this.graph.vertices[i];
+
+            if (vertex.id === excludeVertexId || !vertex.positioned) {
+                continue;
+            }
+
+            let distance = position.distanceSq(vertex.position);
+
+            if (distance <= radius * radius) {
+                locals.push(vertex.id);
+            }
+        }
+
+        return locals;
+    }
+
+    /**
+     * Returns the closest vertex (connected as well as unconnected).
+     *
+     * @param {Vertex} vertex The vertex of which to find the closest other vertex.
+     * @returns {Vertex} The closest vertex.
+     */
+    getClosestVertex(vertex) {
+        let minDist = 99999;
+        let minVertex = null;
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let v = this.graph.vertices[i];
+
+            if (v.id === vertex.id) {
+                continue;
+            }
+
+            let distSq = vertex.position.distanceSq(v.position);
+
+            if (distSq < minDist) {
+                minDist = distSq;
+                minVertex = v;
+            }
+        }
+
+        return minVertex;
+    }
+
+    /**
+     * Add a ring to this representation of a molecule.
+     *
+     * @param {Ring} ring A new ring.
+     * @returns {Number} The ring id of the new ring.
+     */
+    addRing(ring) {
+        ring.id = this.ringIdCounter++;
+        this.rings.push(ring);
+
+        return ring.id;
+    }
+
+    /**
+     * Removes a ring from the array of rings associated with the current molecule.
+     *
+     * @param {Number} ringId A ring id.
+     */
+    removeRing(ringId) {
+        this.rings = this.rings.filter(function(item) {
+            return item.id !== ringId;
+        });
+
+        // Also remove ring connections involving this ring
+        this.ringConnections = this.ringConnections.filter(function(item) {
+            return item.firstRingId !== ringId && item.secondRingId !== ringId;
+        });
+
+        // Remove the ring as neighbour of other rings
+        for (let i = 0; i < this.rings.length; i++) {
+            let r = this.rings[i];
+            r.neighbours = r.neighbours.filter(function(item) {
+                return item !== ringId;
+            });
+        }
+    }
+
+    /**
+     * Gets a ring object from the array of rings associated with the current molecule by its id. The ring id is not equal to the index, since rings can be added and removed when processing bridged rings.
+     *
+     * @param {Number} ringId A ring id.
+     * @returns {Ring} A ring associated with the current molecule.
+     */
+    getRing(ringId) {
+        for (let i = 0; i < this.rings.length; i++) {
+            if (this.rings[i].id == ringId) {
+                return this.rings[i];
+            }
+        }
+    }
+
+    /**
+     * Add a ring connection to this representation of a molecule.
+     *
+     * @param {RingConnection} ringConnection A new ringConnection.
+     * @returns {Number} The ring connection id of the new ring connection.
+     */
+    addRingConnection(ringConnection) {
+        ringConnection.id = this.ringConnectionIdCounter++;
+        this.ringConnections.push(ringConnection);
+
+        return ringConnection.id;
+    }
+
+    /**
+     * Removes a ring connection from the array of rings connections associated with the current molecule.
+     *
+     * @param {Number} ringConnectionId A ring connection id.
+     */
+    removeRingConnection(ringConnectionId) {
+        this.ringConnections = this.ringConnections.filter(function(item) {
+            return item.id !== ringConnectionId;
+        });
+    }
+
+    /**
+     * Removes all ring connections between two vertices.
+     *
+     * @param {Number} vertexIdA A vertex id.
+     * @param {Number} vertexIdB A vertex id.
+     */
+    removeRingConnectionsBetween(vertexIdA, vertexIdB) {
+        let toRemove = [];
+        for (let i = 0; i < this.ringConnections.length; i++) {
+            let ringConnection = this.ringConnections[i];
+
+            if  ((ringConnection.firstRingId === vertexIdA && ringConnection.secondRingId === vertexIdB)
+                || (ringConnection.firstRingId === vertexIdB && ringConnection.secondRingId === vertexIdA)
+            ) {
+                toRemove.push(ringConnection.id);
+            }
+        }
+
+        for (let i = 0; i < toRemove.length; i++) {
+            this.removeRingConnection(toRemove[i]);
+        }
+    }
+
+    /**
+     * Get a ring connection with a given id.
+     *
+     * @param {Number} id
+     * @returns {RingConnection} The ring connection with the specified id.
+     */
+    getRingConnection(id) {
+        for (let i = 0; i < this.ringConnections.length; i++) {
+            if (this.ringConnections[i].id == id) {
+                return this.ringConnections[i];
+            }
+        }
+    }
+
+    /**
+     * Get the ring connections between a ring and a set of rings.
+     *
+     * @param {Number} ringId A ring id.
+     * @param {Number[]} ringIds An array of ring ids.
+     * @returns {Number[]} An array of ring connection ids.
+     */
+    getRingConnections(ringId, ringIds) {
+        let ringConnections = [];
+
+        for (let i = 0; i < this.ringConnections.length; i++) {
+            let rc = this.ringConnections[i];
+
+            for (let j = 0; j < ringIds.length; j++) {
+                let id = ringIds[j];
+
+                if ((rc.firstRingId === ringId && rc.secondRingId === id) || (rc.firstRingId === id && rc.secondRingId === ringId)) {
+                    ringConnections.push(rc.id);
+                }
+            }
+        }
+
+        return ringConnections;
+    }
+
+    /**
+     * Returns the overlap score of the current molecule based on its positioned vertices. The higher the score, the more overlaps occur in the structure drawing.
+     *
+     * @returns {Object} Returns the total overlap score and the overlap score of each vertex sorted by score (higher to lower). Example: { total: 99, scores: [ { id: 0, score: 22 }, ... ]  }
+     */
+    getOverlapScore() {
+        let total = 0.0;
+        let overlapScores = new Float32Array(this.graph.vertices.length);
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            overlapScores[i] = 0;
+        }
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let j = this.graph.vertices.length;
+            while (--j > i) {
+                let a = this.graph.vertices[i];
+                let b = this.graph.vertices[j];
+
+                if (!a.value.isDrawn || !b.value.isDrawn) {
+                    continue;
+                }
+
+                let dist = Vector2.subtract(a.position, b.position).lengthSq();
+
+                if (dist < this.opts.bondLengthSq) {
+                    let weighted = (this.opts.bondLength - Math.sqrt(dist)) / this.opts.bondLength;
+                    total += weighted;
+                    overlapScores[i] += weighted;
+                    overlapScores[j] += weighted;
+                }
+            }
+        }
+
+        let sortable = [];
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            sortable.push({id: i, score: overlapScores[i]});
+        }
+
+        sortable.sort(function(a, b) {
+            return b.score - a.score;
+        });
+
+        return {
+            total:        total,
+            scores:       sortable,
+            vertexScores: overlapScores,
+        };
+    }
+
+    /**
+     * When drawing a double bond, choose the side to place the double bond. E.g. a double bond should always been drawn inside a ring.
+     *
+     * @param {Vertex} vertexA A vertex.
+     * @param {Vertex} vertexB A vertex.
+     * @param {Vector2[]} sides An array containing the two normals of the line spanned by the two provided vertices.
+     * @returns {Object} Returns an object containing the following information: {
+          totalSideCount: Counts the sides of each vertex in the molecule, is an array [ a, b ],
+          totalPosition: Same as position, but based on entire molecule,
+          sideCount: Counts the sides of each neighbour, is an array [ a, b ],
+          position: which side to position the second bond, is 0 or 1, represents the index in the normal array. This is based on only the neighbours
+          anCount: the number of neighbours of vertexA,
+          bnCount: the number of neighbours of vertexB
+      }
+     */
+    chooseSide(vertexA, vertexB, sides) {
+    // Check which side has more vertices
+    // Get all the vertices connected to the both ends
+        let an = vertexA.getNeighbours(vertexB.id);
+        let bn = vertexB.getNeighbours(vertexA.id);
+        let anCount = an.length;
+        let bnCount = bn.length;
+
+        // All vertices connected to the edge vertexA to vertexB
+        let tn = ArrayHelper.merge(an, bn);
+
+        // Only considering the connected vertices
+        let sideCount = [0, 0];
+
+        for (let i = 0; i < tn.length; i++) {
+            let v = this.graph.vertices[tn[i]].position;
+
+            if (v.sameSideAs(vertexA.position, vertexB.position, sides[0])) {
+                sideCount[0]++;
+            }
+            else {
+                sideCount[1]++;
+            }
+        }
+
+        // Considering all vertices in the graph, this is to resolve ties
+        // from the above side counts
+        let totalSideCount = [0, 0];
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let v = this.graph.vertices[i].position;
+
+            if (v.sameSideAs(vertexA.position, vertexB.position, sides[0])) {
+                totalSideCount[0]++;
+            }
+            else {
+                totalSideCount[1]++;
+            }
+        }
+
+        return {
+            totalSideCount: totalSideCount,
+            totalPosition:  totalSideCount[0] > totalSideCount[1] ? 0 : 1,
+            sideCount:      sideCount,
+            position:       sideCount[0] > sideCount[1] ? 0 : 1,
+            anCount:        anCount,
+            bnCount:        bnCount,
+        };
+    }
+
+    /**
+     * Sets the center for a ring.
+     *
+     * @param {Ring} ring A ring.
+     */
+    setRingCenter(ring) {
+        let ringSize = ring.getSize();
+        let total = new Vector2(0, 0);
+
+        for (let i = 0; i < ringSize; i++) {
+            total.add(this.graph.vertices[ring.members[i]].position);
+        }
+
+        ring.center = total.divide(ringSize);
+    }
+
+    /**
+     * Gets the center of a ring contained within a bridged ring and containing a given vertex.
+     *
+     * @param {Ring} ring A bridged ring.
+     * @param {Vertex} vertex A vertex.
+     * @returns {Vector2} The center of the subring that containing the vertex.
+     */
+    getSubringCenter(ring, vertex) {
+        let rings = vertex.value.originalRings;
+        let center = ring.center;
+        let smallest = Number.MAX_VALUE;
+
+        // Always get the smallest ring.
+        for (let i = 0; i < rings.length; i++) {
+            for (let j = 0; j < ring.rings.length; j++) {
+                if (rings[i] === ring.rings[j].id) {
+                    if (ring.rings[j].getSize() < smallest) {
+                        center = ring.rings[j].center;
+                        smallest = ring.rings[j].getSize();
+                    }
+                }
+            }
+        }
+
+        return center;
+    }
+
+    /**
+     * Draw the actual edges as bonds to the canvas.
+     *
+     * @param {Boolean} debug A boolean indicating whether or not to draw debug helpers.
+     */
+    drawEdges(debug) {
+        let drawn = Array(this.graph.edges.length);
+        drawn.fill(false);
+
+        this.graph.traverseBF(0, (vertex) => {
+            let edges = this.graph.getEdges(vertex.id);
+            for (let i = 0; i < edges.length; i++) {
+                let edgeId = edges[i];
+                if (!drawn[edgeId]) {
+                    drawn[edgeId] = true;
+                    this.drawEdge(edgeId, debug);
+                }
+            }
+        });
+
+        // Draw the aromatic-ring circle. Bridged aromatic rings still get
+        // a circle as long as their 2D projection is close to a regular
+        // polygon (e.g. a flat pyrrole on a bridged bicyclic). Distorted
+        // ones (paracyclophane, triptycene) are skipped here and fall
+        // back to dashed bonds in drawEdge. Mirrors SvgDrawer.drawEdges.
+        for (let i = 0; i < this.rings.length; i++) {
+            let ring = this.rings[i];
+
+            if (!this.isRingAromatic(ring)) continue;
+
+            if (ring.isPartOfBridged && !this.isRingRegularPolygon(ring)) {
+                continue;
+            }
+
+            this.canvasWrapper.drawAromaticityRing(ring);
+        }
+    }
+
+    /**
+     * Draw the an edge as a bonds to the canvas.
+     *
+     * @param {Number} edgeId An edge id.
+     * @param {Boolean} debug A boolean indicating whether or not to draw debug helpers.
+     */
+    drawEdge(edgeId, debug) {
+        let edge = this.graph.edges[edgeId];
+        let vertexA = this.graph.vertices[edge.sourceId];
+        let vertexB = this.graph.vertices[edge.targetId];
+        let elementA = vertexA.value.element;
+        let elementB = vertexB.value.element;
+
+        if ((!vertexA.value.isDrawn || !vertexB.value.isDrawn) && this.opts.atomVisualization === 'default') {
+            return;
+        }
+
+        let a = vertexA.position;
+        let b = vertexB.position;
+        let normals = this.getEdgeNormals(edge);
+
+        // Create a point on each side of the line
+        let sides = ArrayHelper.clone(normals);
+
+        sides[0].multiplyScalar(10).add(a);
+        sides[1].multiplyScalar(10).add(a);
+
+        // The third condition handles aromatic bonds inside a bridged ring
+        // system wher the 2D projection is too distorted for the
+        // aromatic circle too look good (e.g triptycene). Those bonds
+        // get drawn as a solid line with a dashed parallel inside the ring
+        // If the aromatic ring is still close to a regular polygon (e.g.
+        // a flat pyrrole on a bridged bicyclic) we skip this branch and
+        // let drawEdges draw the circle as usual becuase it looks better.
+        // the long term fix is to kekulise aromatic input for bridged systems in
+        // the parser (explicit single/double) Mirrors SvgDrawer.drawEdge.
+        let aromaticRing = (edge.isPartOfAromaticRing
+            && vertexA.value.bridgedRing !== null
+            && vertexB.value.bridgedRing !== null)
+            ? this.getLargestOrAromaticCommonRing(vertexA, vertexB)
+            : null;
+
+        if (edge.bondType === '=' || this.getRingbondType(vertexA, vertexB) === '=' || (aromaticRing && !this.isRingRegularPolygon(aromaticRing))) {
+            // Always draw double bonds inside the ring
+            let inRing = this.areVerticesInSameRing(vertexA, vertexB);
+            let s = this.chooseSide(vertexA, vertexB, sides);
+
+            if (inRing) {
+                // Always draw double bonds inside a ring
+                // if the bond is shared by two rings, it is drawn in the larger
+                // problem: smaller ring is aromatic, bond is still drawn in larger -> fix this
+                let lcr = this.getLargestOrAromaticCommonRing(vertexA, vertexB);
+                let center = lcr.center;
+
+                normals[0].multiplyScalar(this.opts.bondSpacing);
+                normals[1].multiplyScalar(this.opts.bondSpacing);
+
+                // Choose the normal that is on the same side as the center
+                let line = null;
+
+                if (center.sameSideAs(vertexA.position, vertexB.position, Vector2.add(a, normals[0]))) {
+                    line = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+                }
+                else {
+                    line = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+                }
+
+                line.shorten(this.opts.bondLength - this.opts.shortBondLength * this.opts.bondLength);
+
+                // The shortened edge
+                if (edge.isPartOfAromaticRing) {
+                    this.canvasWrapper.drawLine(line, true);
+                }
+                else {
+                    this.canvasWrapper.drawLine(line);
+                }
+
+                // The normal edge
+                this.canvasWrapper.drawLine(new Line(a, b, elementA, elementB));
+            }
+            else if (edge.center || (vertexA.isTerminal() && vertexB.isTerminal())) {
+                normals[0].multiplyScalar(this.opts.halfBondSpacing);
+                normals[1].multiplyScalar(this.opts.halfBondSpacing);
+
+                let lineA = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+                let lineB = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+
+                this.canvasWrapper.drawLine(lineA);
+                this.canvasWrapper.drawLine(lineB);
+            }
+            else if ((s.anCount == 0 && s.bnCount > 1) || (s.bnCount == 0 && s.anCount > 1)) {
+                // Both lines are the same length here
+                // Add the spacing to the edges (which are of unit length)
+                normals[0].multiplyScalar(this.opts.halfBondSpacing);
+                normals[1].multiplyScalar(this.opts.halfBondSpacing);
+
+                let lineA = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+                let lineB = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+
+                this.canvasWrapper.drawLine(lineA);
+                this.canvasWrapper.drawLine(lineB);
+            }
+            else if (s.sideCount[0] > s.sideCount[1]) {
+                normals[0].multiplyScalar(this.opts.bondSpacing);
+                normals[1].multiplyScalar(this.opts.bondSpacing);
+
+                let line = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+
+                line.shorten(this.opts.bondLength - this.opts.shortBondLength * this.opts.bondLength);
+                this.canvasWrapper.drawLine(line);
+                this.canvasWrapper.drawLine(new Line(a, b, elementA, elementB));
+            }
+            else if (s.sideCount[0] < s.sideCount[1]) {
+                normals[0].multiplyScalar(this.opts.bondSpacing);
+                normals[1].multiplyScalar(this.opts.bondSpacing);
+
+                let line = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+
+                line.shorten(this.opts.bondLength - this.opts.shortBondLength * this.opts.bondLength);
+                this.canvasWrapper.drawLine(line);
+                this.canvasWrapper.drawLine(new Line(a, b, elementA, elementB));
+            }
+            else if (s.totalSideCount[0] > s.totalSideCount[1]) {
+                normals[0].multiplyScalar(this.opts.bondSpacing);
+                normals[1].multiplyScalar(this.opts.bondSpacing);
+
+                let line = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+
+                line.shorten(this.opts.bondLength - this.opts.shortBondLength * this.opts.bondLength);
+                this.canvasWrapper.drawLine(line);
+                this.canvasWrapper.drawLine(new Line(a, b, elementA, elementB));
+            }
+            else if (s.totalSideCount[0] <= s.totalSideCount[1]) {
+                normals[0].multiplyScalar(this.opts.bondSpacing);
+                normals[1].multiplyScalar(this.opts.bondSpacing);
+
+                let line = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+
+                line.shorten(this.opts.bondLength - this.opts.shortBondLength * this.opts.bondLength);
+                this.canvasWrapper.drawLine(line);
+                this.canvasWrapper.drawLine(new Line(a, b, elementA, elementB));
+            }
+        }
+        else if (edge.bondType === '#') {
+            normals[0].multiplyScalar(this.opts.bondSpacing / 1.5);
+            normals[1].multiplyScalar(this.opts.bondSpacing / 1.5);
+
+            let lineA = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+            let lineB = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+
+            this.canvasWrapper.drawLine(lineA);
+            this.canvasWrapper.drawLine(lineB);
+
+            this.canvasWrapper.drawLine(new Line(a, b, elementA, elementB));
+        }
+        else if (edge.bondType === '.') {
+            // TODO: Something... maybe... version 2?
+        }
+        else {
+            let isChiralCenterA = vertexA.value.isStereoCenter;
+            let isChiralCenterB = vertexB.value.isStereoCenter;
+
+            if (edge.wedge === 'up') {
+                this.canvasWrapper.drawWedge(new Line(a, b, elementA, elementB, isChiralCenterA, isChiralCenterB));
+            }
+            else if (edge.wedge === 'down') {
+                this.canvasWrapper.drawDashedWedge(new Line(a, b, elementA, elementB, isChiralCenterA, isChiralCenterB));
+            }
+            else {
+                this.canvasWrapper.drawLine(new Line(a, b, elementA, elementB, isChiralCenterA, isChiralCenterB));
+            }
+        }
+
+        if (debug) {
+            let midpoint = Vector2.midpoint(a, b);
+            this.canvasWrapper.drawDebugText(midpoint.x, midpoint.y, 'e: ' + edgeId);
+        }
+    }
+
+    /**
+     * Draws the vertices representing atoms to the canvas.
+     *
+     * @param {Boolean} debug A boolean indicating whether or not to draw debug messages to the canvas.
+     */
+    drawVertices(debug) {
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let vertex = this.graph.vertices[i];
+            let atom = vertex.value;
+            let charge = 0;
+            let isotope = 0;
+            let element = atom.element;
+            let hydrogens = atom.countImplicitHydrogens();
+            let dir = vertex.getTextDirection(this.graph.vertices);
+            const showCarbonsMode = DrawerBase.getEffectiveShowCarbonsMode(this.opts);
+            let isTerminal = (showCarbonsMode === 'terminal' || element !== 'C' || atom.hasAttachedPseudoElements) ? vertex.isTerminal() : false;
+            let isCarbon = atom.element === 'C';
+
+            if (element === 'C') {
+                const isRingCarbon = atom.rings && atom.rings.length > 0;
+                if (showCarbonsMode === 'none') {
+                    isCarbon = true;
+                    isTerminal = false;
+                }
+                else if (showCarbonsMode === 'all') {
+                    isCarbon = false;
+                    isTerminal = true;
+                }
+                else if (showCarbonsMode === 'acyclic' && !isRingCarbon) {
+                    isCarbon = false;
+                    isTerminal = true;
+                }
+            }
+            // This is a HACK to remove all hydrogens from nitrogens in aromatic rings, as this
+            // should be the most common state. This has to be fixed by kekulization
+            if (atom.element === 'N' && atom.isPartOfAromaticRing) {
+                hydrogens = 0;
+            }
+
+            if (atom.bracket) {
+                hydrogens = atom.bracket.hcount;
+                charge = atom.bracket.charge;
+                isotope = atom.bracket.isotope;
+            }
+
+            // If the molecule has less than 3 elements, always write the 'C' for carbon
+            // Likewise, if the carbon has a charge or an isotope, always draw it
+            if (charge || isotope || this.graph.vertices.length < 3) {
+                isCarbon = false;
+            }
+
+            if (this.opts.atomVisualization === 'allballs') {
+                this.canvasWrapper.drawBall(vertex.position.x, vertex.position.y, element);
+            }
+            else if ((atom.isDrawn && (!isCarbon || atom.drawExplicit || isTerminal || atom.hasAttachedPseudoElements)) || this.graph.vertices.length === 1) {
+                if (this.opts.atomVisualization === 'default') {
+                    this.canvasWrapper.drawText(vertex.position.x, vertex.position.y,
+                        element, hydrogens, dir, isTerminal, charge, isotope, this.graph.vertices.length, atom.getAttachedPseudoElements());
+                }
+                else if (this.opts.atomVisualization === 'balls') {
+                    this.canvasWrapper.drawBall(vertex.position.x, vertex.position.y, element);
+                }
+            }
+            else if (vertex.getNeighbourCount() === 2 && vertex.forcePositioned == true) {
+                // If there is a carbon which bonds are in a straight line, draw a dot
+                let a = this.graph.vertices[vertex.neighbours[0]].position;
+                let b = this.graph.vertices[vertex.neighbours[1]].position;
+                let angle = Vector2.threePointangle(vertex.position, a, b);
+
+                if (Math.abs(Math.PI - angle) < 0.1) {
+                    this.canvasWrapper.drawPoint(vertex.position.x, vertex.position.y, element);
+                }
+            }
+
+            if (debug) {
+                let value = 'v: ' + vertex.id + ' ' + ArrayHelper.print(atom.ringbonds);
+                this.canvasWrapper.drawDebugText(vertex.position.x, vertex.position.y, value);
+            }
+            else {
+                // this.canvasWrapper.drawDebugText(vertex.position.x, vertex.position.y, vertex.value.chirality);
+            }
+        }
+
+        // Draw the ring centers for debug purposes
+        if (this.opts.debug) {
+            for (let i = 0; i < this.rings.length; i++) {
+                let center = this.rings[i].center;
+                this.canvasWrapper.drawDebugPoint(center.x, center.y, 'r: ' + this.rings[i].id);
+            }
+        }
+    }
+
+    /**
+     * Position the vertices according to their bonds and properties.
+     */
+    position() {
+        let startVertex = null;
+
+        // Always start drawing at a bridged ring if there is one
+        // If not, start with a ring
+        // else, start with 0
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            if (this.graph.vertices[i].value.bridgedRing !== null) {
+                startVertex = this.graph.vertices[i];
+                break;
+            }
+        }
+
+        for (let i = 0; i < this.rings.length; i++) {
+            if (this.rings[i].isBridged) {
+                startVertex = this.graph.vertices[this.rings[i].members[0]];
+            }
+        }
+
+        if (this.rings.length > 0 && startVertex === null) {
+            startVertex = this.graph.vertices[this.rings[0].members[0]];
+        }
+
+        if (startVertex === null) {
+            startVertex = this.graph.vertices[0];
+        }
+
+        this.createNextBond(startVertex, null, 0.0);
+    }
+
+    /**
+     * Stores the current information associated with rings.
+     */
+    backupRingInformation() {
+        this.originalRings = [];
+        this.originalRingConnections = [];
+
+        for (let i = 0; i < this.rings.length; i++) {
+            this.originalRings.push(this.rings[i]);
+        }
+
+        for (let i = 0; i < this.ringConnections.length; i++) {
+            this.originalRingConnections.push(this.ringConnections[i]);
+        }
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            this.graph.vertices[i].value.backupRings();
+        }
+    }
+
+    /**
+     * Restores the most recently backed up information associated with rings.
+     */
+    restoreRingInformation() {
+    // Get the subring centers from the bridged rings
+        let bridgedRings = this.getBridgedRings();
+
+        this.rings = [];
+        this.ringConnections = [];
+
+        for (let i = 0; i < bridgedRings.length; i++) {
+            let bridgedRing = bridgedRings[i];
+
+            for (let j = 0; j < bridgedRing.rings.length; j++) {
+                let ring = bridgedRing.rings[j];
+                this.originalRings[ring.id].center = ring.center;
+            }
+        }
+
+        for (let i = 0; i < this.originalRings.length; i++) {
+            this.rings.push(this.originalRings[i]);
+        }
+
+        for (let i = 0; i < this.originalRingConnections.length; i++) {
+            this.ringConnections.push(this.originalRingConnections[i]);
+        }
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            this.graph.vertices[i].value.restoreRings();
+        }
+    }
+
+    // TODO: This needs some cleaning up
+
+    /**
+     * Creates a new ring, that is, positiones all the vertices inside a ring.
+     *
+     * @param {Ring} ring The ring to position.
+     * @param {(Vector2|null)} [center=null] The center of the ring to be created.
+     * @param {(Vertex|null)} [startVertex=null] The first vertex to be positioned inside the ring.
+     * @param {(Vertex|null)} [previousVertex=null] The last vertex that was positioned.
+     * @param {Boolean} [previousVertex=false] A boolean indicating whether or not this ring was force positioned already - this is needed after force layouting a ring, in order to draw rings connected to it.
+     */
+    createRing(ring, center = null, startVertex = null, previousVertex = null) {
+        if (ring.positioned) {
+            return;
+        }
+
+        center = center ? center : new Vector2(0, 0);
+
+        let orderedNeighbours = ring.getOrderedNeighbours(this.ringConnections);
+        let startingAngle = startVertex ? Vector2.subtract(startVertex.position, center).angle() : 0;
+
+        let radius = MathHelper.polyCircumradius(this.opts.bondLength, ring.getSize());
+        let angle = MathHelper.centralAngle(ring.getSize());
+
+        ring.centralAngle = angle;
+
+        let a = startingAngle;
+        let startVertexId = (startVertex) ? startVertex.id : null;
+
+        if (ring.members.indexOf(startVertexId) === -1) {
+            if (startVertex) {
+                startVertex.positioned = false;
+            }
+
+            startVertexId = ring.members[0];
+        }
+
+        // If the ring is bridged, then draw the vertices inside the ring
+        // using a force based approach
+        if (ring.isBridged) {
+            this.graph.kkLayout(ring.members.slice(), center, startVertex.id, ring, this.opts.bondLength,
+                this.opts.kkThreshold, this.opts.kkInnerThreshold, this.opts.kkMaxIteration,
+                this.opts.kkMaxInnerIteration, this.opts.kkMaxEnergy);
+            ring.positioned = true;
+
+            // Update the center of the bridged ring
+            this.setRingCenter(ring);
+            center = ring.center;
+
+            // Setting the centers for the subrings
+            for (let i = 0; i < ring.rings.length; i++) {
+                this.setRingCenter(ring.rings[i]);
+            }
+        }
+        else {
+            ring.eachMember(this.graph.vertices, (v) => {
+                let vertex = this.graph.vertices[v];
+
+                if (!vertex.positioned) {
+                    vertex.setPosition(center.x + Math.cos(a) * radius, center.y + Math.sin(a) * radius);
+                }
+
+                a += angle;
+
+                if (!ring.isBridged || ring.rings.length < 3) {
+                    vertex.angle = a;
+                    vertex.positioned = true;
+                }
+            }, startVertexId, (previousVertex) ? previousVertex.id : null);
+        }
+
+        ring.positioned = true;
+        ring.center = center;
+
+        // Draw neighbours in decreasing order of connectivity
+        for (let i = 0; i < orderedNeighbours.length; i++) {
+            let neighbour = this.getRing(orderedNeighbours[i].neighbour);
+
+            if (neighbour.positioned) {
+                continue;
+            }
+
+            let vertices = RingConnection.getVertices(this.ringConnections, ring.id, neighbour.id);
+
+            if (vertices.length === 2) {
+                // This ring is a fused ring
+                ring.isFused = true;
+                neighbour.isFused = true;
+
+                let vertexA = this.graph.vertices[vertices[0]];
+                let vertexB = this.graph.vertices[vertices[1]];
+
+                // Get middle between vertex A and B
+                let midpoint = Vector2.midpoint(vertexA.position, vertexB.position);
+
+                // Get the normals to the line between A and B
+                let normals = Vector2.normals(vertexA.position, vertexB.position);
+
+                // Normalize the normals
+                normals[0].normalize();
+                normals[1].normalize();
+
+                // Set length from middle of side to center (the apothem)
+                let r = MathHelper.polyCircumradius(this.opts.bondLength, neighbour.getSize());
+                let apothem = MathHelper.apothem(r, neighbour.getSize());
+
+                normals[0].multiplyScalar(apothem).add(midpoint);
+                normals[1].multiplyScalar(apothem).add(midpoint);
+
+                // Pick the normal which results in a larger distance to the previous center
+                // Also check whether it's inside another ring
+                let nextCenter = normals[0];
+                if (Vector2.subtract(center, normals[1]).lengthSq() > Vector2.subtract(center, normals[0]).lengthSq()) {
+                    nextCenter = normals[1];
+                }
+
+                // Get the vertex (A or B) which is in clock-wise direction of the other
+                let posA = Vector2.subtract(vertexA.position, nextCenter);
+                let posB = Vector2.subtract(vertexB.position, nextCenter);
+
+                if (posA.clockwise(posB) === -1) {
+                    if (!neighbour.positioned) {
+                        this.createRing(neighbour, nextCenter, vertexA, vertexB);
+                    }
+                }
+                else {
+                    if (!neighbour.positioned) {
+                        this.createRing(neighbour, nextCenter, vertexB, vertexA);
+                    }
+                }
+            }
+            else if (vertices.length === 1) {
+                // This ring is a spiro
+                ring.isSpiro = true;
+                neighbour.isSpiro = true;
+
+                let vertexA = this.graph.vertices[vertices[0]];
+
+                // Get the vector pointing from the shared vertex to the new centpositioner
+                let nextCenter = Vector2.subtract(center, vertexA.position);
+
+                nextCenter.invert();
+                nextCenter.normalize();
+
+                // Get the distance from the vertex to the center
+                let r = MathHelper.polyCircumradius(this.opts.bondLength, neighbour.getSize());
+
+                nextCenter.multiplyScalar(r);
+                nextCenter.add(vertexA.position);
+
+                if (!neighbour.positioned) {
+                    this.createRing(neighbour, nextCenter, vertexA);
+                }
+            }
+        }
+
+        // Next, draw atoms that are not part of a ring that are directly attached to this ring
+        for (let i = 0; i < ring.members.length; i++) {
+            let ringMember = this.graph.vertices[ring.members[i]];
+            let ringMemberNeighbours = ringMember.neighbours;
+
+            // If there are multiple, the ovlerap will be resolved in the appropriate step
+            for (let j = 0; j < ringMemberNeighbours.length; j++) {
+                let v = this.graph.vertices[ringMemberNeighbours[j]];
+
+                if (v.positioned) {
+                    continue;
+                }
+
+                v.value.isConnectedToRing = true;
+                this.createNextBond(v, ringMember, 0.0);
+            }
+        }
+    }
+
+    /**
+     * Post-processing fix for E/Z double bond stereochemistry.
+     * After position(), checks all stereo double bonds and corrects any
+     * where the visual geometry doesn't match the SMILES encoding.
+     *
+     * The SMILES edge source→target preserves reading order, so we can
+     * determine the intended side for each substituent independent of
+     * the graph traversal order used during position().
+     */
+    fixDoubleBondStereo() {
+        const graph = this.graph;
+
+        for (let i = 0; i < graph.edges.length; i++) {
+            const edge = graph.edges[i];
+            if (edge.bondType !== '=') continue;
+
+            const vA = edge.sourceId;
+            const vB = edge.targetId;
+
+            if (this.areVerticesInSameRing(graph.vertices[vA], graph.vertices[vB])) {
+                // These had better be in the right place by default,
+                // because there's no clean fix if they're not...
+                continue;
+            }
+
+            // Find stereo-marked (/ or \) bonds on each side
+            let stereoA = null, stereoB = null;
+
+            for (const nid of graph.vertices[vA].getNeighbours()) {
+                if (nid === vB) continue;
+                const e = graph.getEdge(vA, nid);
+                if (e && (e.bondType === '/' || e.bondType === '\\')) {
+                    // '/' means source is below, target is above
+                    // So neighbor's side depends on whether it's source or target
+                    let neighborAbove = (e.sourceId === vA)
+                        ? (e.bondType === '/')    // B=A/N: N above
+                        : (e.bondType === '\\');  // N\A=B: N above
+                    stereoA = {nid, above: neighborAbove};
+                    break;
+                }
+            }
+
+            for (const nid of graph.vertices[vB].getNeighbours()) {
+                if (nid === vA) continue;
+                const e = graph.getEdge(vB, nid);
+                if (e && (e.bondType === '/' || e.bondType === '\\')) {
+                    let neighborAbove = (e.sourceId === vB)
+                        ? (e.bondType === '/')
+                        : (e.bondType === '\\');
+                    stereoB = {nid, above: neighborAbove};
+                    break;
+                }
+            }
+
+            if (!stereoA || !stereoB) continue;
+
+            // Expected: same above → same side → Z; different → opposite → E
+            const expectedSameSide = (stereoA.above === stereoB.above);
+
+            // Actual geometry via cross products
+            const posA = graph.vertices[vA].position;
+            const posB = graph.vertices[vB].position;
+            const posS1 = graph.vertices[stereoA.nid].position;
+            const posS2 = graph.vertices[stereoB.nid].position;
+
+            const ax = posB.x - posA.x;
+            const ay = posB.y - posA.y;
+
+            const cross1 = ax * (posS1.y - posA.y) - ay * (posS1.x - posA.x);
+            const cross2 = ax * (posS2.y - posB.y) - ay * (posS2.x - posB.x);
+            const actualSameSide = (cross1 > 0) === (cross2 > 0);
+
+            if (expectedSameSide === actualSameSide) continue;
+
+            // Geometry is wrong — reflect a subtree across the double bond axis.
+            // Prefer to flip from the side with fewer stereo bonds to avoid
+            // disrupting other stereo constraints at the same carbon.
+            let countA = 0, countB = 0;
+            for (const nid of graph.vertices[vA].getNeighbours()) {
+                if (nid === vB) continue;
+                const e = graph.getEdge(vA, nid);
+                if (e && (e.bondType === '/' || e.bondType === '\\')) countA++;
+            }
+            for (const nid of graph.vertices[vB].getNeighbours()) {
+                if (nid === vA) continue;
+                const e = graph.getEdge(vB, nid);
+                if (e && (e.bondType === '/' || e.bondType === '\\')) countB++;
+            }
+
+            const flipId  = (countA <= countB) ? vA : vB;
+            const pivotId = (countA <= countB) ? vB : vA;
+
+            // Reflect subtree across the line through pivot in direction (ax, ay)
+            const pivot = graph.vertices[pivotId].position;
+            const len2 = ax * ax + ay * ay;
+            if (len2 < 0.001) continue;
+
+            graph.traverseTree(flipId, pivotId, (vertex) => {
+                const dx = vertex.position.x - pivot.x;
+                const dy = vertex.position.y - pivot.y;
+                const dot = dx * ax + dy * ay;
+
+                vertex.position.x = pivot.x + (2 * dot * ax / len2) - dx;
+                vertex.position.y = pivot.y + (2 * dot * ay / len2) - dy;
+
+                // Also reflect anchored ring centers
+                for (let j = 0; j < vertex.value.anchoredRings.length; j++) {
+                    let ring = this.rings[vertex.value.anchoredRings[j]];
+                    if (ring) {
+                        const rdx = ring.center.x - pivot.x;
+                        const rdy = ring.center.y - pivot.y;
+                        const rdot = rdx * ax + rdy * ay;
+                        ring.center.x = pivot.x + (2 * rdot * ax / len2) - rdx;
+                        ring.center.y = pivot.y + (2 * rdot * ay / len2) - rdy;
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Rotate an entire subtree by an angle around a center.
+     *
+     * @param {Number} vertexId A vertex id (the root of the sub-tree).
+     * @param {Number} parentVertexId A vertex id in the previous direction of the subtree that is to rotate.
+     * @param {Number} angle An angle in radians.
+     * @param {Vector2} center The rotational center.
+     */
+    rotateSubtree(vertexId, parentVertexId, angle, center) {
+        let rotationCenter = center.clone();
+
+        this.graph.traverseTree(vertexId, parentVertexId, (vertex) => {
+            vertex.position.rotateAround(angle, rotationCenter);
+
+            for (let i = 0; i < vertex.value.anchoredRings.length; i++) {
+                let ring = this.rings[vertex.value.anchoredRings[i]];
+
+                if (ring) {
+                    ring.center.rotateAround(angle, rotationCenter);
+                }
+            }
+        });
+    }
+
+    /**
+     * Gets the overlap score of a subtree.
+     *
+     * @param {Number} vertexId A vertex id (the root of the sub-tree).
+     * @param {Number} parentVertexId A vertex id in the previous direction of the subtree.
+     * @param {Number[]} vertexOverlapScores An array containing the vertex overlap scores indexed by vertex id.
+     * @returns {Object} An object containing the total overlap score and the center of mass of the subtree weighted by overlap score { value: 0.2, center: new Vector2() }.
+     */
+    getSubtreeOverlapScore(vertexId, parentVertexId, vertexOverlapScores) {
+        let score = 0;
+        let center = new Vector2(0, 0);
+        let count = 0;
+
+        this.graph.traverseTree(vertexId, parentVertexId, (vertex) => {
+            if (!vertex.value.isDrawn) {
+                return;
+            }
+
+            let s = vertexOverlapScores[vertex.id];
+            if (s > this.opts.overlapSensitivity) {
+                score += s;
+                count++;
+            }
+
+            let position = this.graph.vertices[vertex.id].position.clone();
+            position.multiplyScalar(s);
+            center.add(position);
+        });
+
+        center.divide(score);
+
+        return {
+            value:  score / count,
+            center: center,
+        };
+    }
+
+    /**
+     * Returns the current (positioned vertices so far) center of mass.
+     *
+     * @returns {Vector2} The current center of mass.
+     */
+    getCurrentCenterOfMass() {
+        let total = new Vector2(0, 0);
+        let count = 0;
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let vertex = this.graph.vertices[i];
+
+            if (vertex.positioned) {
+                total.add(vertex.position);
+                count++;
+            }
+        }
+
+        return total.divide(count);
+    }
+
+    /**
+     * Returns the current (positioned vertices so far) center of mass in the neighbourhood of a given position.
+     *
+     * @param {Vector2} vec The point at which to look for neighbours.
+     * @param {Number} [r=currentBondLength*2.0] The radius of vertices to include.
+     * @returns {Vector2} The current center of mass.
+     */
+    getCurrentCenterOfMassInNeigbourhood(vec, r = this.opts.bondLength * 2.0) {
+        let total = new Vector2(0, 0);
+        let count = 0;
+        let rSq = r * r;
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let vertex = this.graph.vertices[i];
+
+            if (vertex.positioned && vec.distanceSq(vertex.position) < rSq) {
+                total.add(vertex.position);
+                count++;
+            }
+        }
+
+        return total.divide(count);
+    }
+
+    /**
+     * Resolve primary (exact) overlaps, such as two vertices that are connected to the same ring vertex.
+     */
+    resolvePrimaryOverlaps() {
+        let overlaps = [];
+        let done = Array(this.graph.vertices.length);
+
+        // Looking for overlaps created by two bonds coming out of a ring atom, which both point straight
+        // away from the ring and are thus perfectly overlapping.
+        for (let i = 0; i < this.rings.length; i++) {
+            let ring = this.rings[i];
+
+            for (let j = 0; j < ring.members.length; j++) {
+                let vertex = this.graph.vertices[ring.members[j]];
+
+                if (done[vertex.id]) {
+                    continue;
+                }
+
+                done[vertex.id] = true;
+
+                let nonRingNeighbours = this.getNonRingNeighbours(vertex.id);
+
+                if (nonRingNeighbours.length > 1) {
+                    // Look for rings where there are atoms with two bonds outside the ring (overlaps)
+                    let rings = [];
+
+                    for (let k = 0; k < vertex.value.rings.length; k++) {
+                        rings.push(vertex.value.rings[k]);
+                    }
+
+                    overlaps.push({
+                        common:   vertex,
+                        rings:    rings,
+                        vertices: nonRingNeighbours,
+                    });
+                }
+                else if (nonRingNeighbours.length === 1 && vertex.value.rings.length === 2) {
+                    // Look for bonds coming out of joined rings to adjust the angle, an example is: C1=CC(=CC=C1)[C@]12SCCN1CC1=CC=CC=C21
+                    // where the angle has to be adjusted to account for fused ring
+                    let rings = [];
+
+                    for (let k = 0; k < vertex.value.rings.length; k++) {
+                        rings.push(vertex.value.rings[k]);
+                    }
+
+                    overlaps.push({
+                        common:   vertex,
+                        rings:    rings,
+                        vertices: nonRingNeighbours,
+                    });
+                }
+            }
+        }
+
+        for (let i = 0; i < overlaps.length; i++) {
+            let overlap = overlaps[i];
+
+            if (overlap.vertices.length === 2) {
+                let a = overlap.vertices[0];
+                let b = overlap.vertices[1];
+
+                if (!a.value.isDrawn || !b.value.isDrawn) {
+                    continue;
+                }
+
+                let angle = (2 * Math.PI - this.getRing(overlap.rings[0]).getAngle()) / 6.0;
+
+                this.rotateSubtree(a.id, overlap.common.id, angle, overlap.common.position);
+                this.rotateSubtree(b.id, overlap.common.id, -angle, overlap.common.position);
+
+                // Decide which way to rotate the vertices depending on the effect it has on the overlap score
+                let overlapScore = this.getOverlapScore();
+                let subTreeOverlapA = this.getSubtreeOverlapScore(a.id, overlap.common.id, overlapScore.vertexScores);
+                let subTreeOverlapB = this.getSubtreeOverlapScore(b.id, overlap.common.id, overlapScore.vertexScores);
+                let total = subTreeOverlapA.value + subTreeOverlapB.value;
+
+                this.rotateSubtree(a.id, overlap.common.id, -2.0 * angle, overlap.common.position);
+                this.rotateSubtree(b.id, overlap.common.id, 2.0 * angle, overlap.common.position);
+
+                overlapScore = this.getOverlapScore();
+                subTreeOverlapA = this.getSubtreeOverlapScore(a.id, overlap.common.id, overlapScore.vertexScores);
+                subTreeOverlapB = this.getSubtreeOverlapScore(b.id, overlap.common.id, overlapScore.vertexScores);
+
+                if (subTreeOverlapA.value + subTreeOverlapB.value > total) {
+                    this.rotateSubtree(a.id, overlap.common.id, 2.0 * angle, overlap.common.position);
+                    this.rotateSubtree(b.id, overlap.common.id, -2.0 * angle, overlap.common.position);
+                }
+            }
+            else if (overlap.vertices.length === 1) {
+                if (overlap.rings.length === 2) {
+                    // TODO: Implement for more overlap resolution
+                    // console.log(overlap);
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolve secondary overlaps. Those overlaps are due to the structure turning back on itself.
+     *
+     * @param {Object[]} scores An array of objects sorted descending by score.
+     * @param {Number} scores[].id A vertex id.
+     * @param {Number} scores[].score The overlap score associated with the vertex id.
+     */
+    resolveSecondaryOverlaps(scores) {
+        for (let i = 0; i < scores.length; i++) {
+            if (scores[i].score > this.opts.overlapSensitivity) {
+                let vertex = this.graph.vertices[scores[i].id];
+
+                if (vertex.isTerminal()) {
+                    let closest = this.getClosestVertex(vertex);
+
+                    if (closest) {
+                        // If one of the vertices is the first one, the previous vertex is not the central vertex but the dummy
+                        // so take the next rather than the previous, which is vertex 1
+                        let closestPosition = null;
+
+                        if (closest.isTerminal()) {
+                            closestPosition = closest.id === 0 ? this.graph.vertices[1].position : closest.previousPosition;
+                        }
+                        else {
+                            closestPosition = closest.id === 0 ? this.graph.vertices[1].position : closest.position;
+                        }
+
+                        let vertexPreviousPosition = vertex.id === 0 ? this.graph.vertices[1].position : vertex.previousPosition;
+
+                        vertex.position.rotateAwayFrom(closestPosition, vertexPreviousPosition, MathHelper.toRad(20));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Get the last non-null or 0 angle.
+     * @param {Number} vertexId A vertex id.
+     * @returns {Number} The last angle that was not 0 or null.
+     */
+    getLastAngle(vertexId) {
+        while (vertexId) {
+            let vertex = this.graph.vertices[vertexId];
+            if (vertex.value.rings.length > 0) {
+                // Angles from rings aren't useful to us...
+                return 0;
+            }
+            if (vertex.angle) {
+                return vertex.angle;
+            }
+
+            vertexId = vertex.parentVertexId;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Positiones the next vertex thus creating a bond.
+     *
+     * @param {Vertex} vertex A vertex.
+     * @param {Vertex} [previousVertex=null] The previous vertex which has been positioned.
+     * @param {Number} [angle=0.0] The (global) angle of the vertex.
+     * @param {Boolean} [originShortest=false] Whether the origin is the shortest subtree in the branch.
+     * @param {Boolean} [skipPositioning=false] Whether or not to skip positioning and just check the neighbours.
+     */
+    createNextBond(vertex, previousVertex = null, angle = 0.0, originShortest = false, skipPositioning = false) {
+        if (vertex.positioned && !skipPositioning) {
+            return;
+        }
+
+        // If the double bond config was set on this vertex, do not check later
+        let doubleBondConfigSet = false;
+
+        // Keeping track of configurations around double bonds
+        if (previousVertex) {
+            let edge = this.graph.getEdge(vertex.id, previousVertex.id);
+
+            if ((edge.bondType === '/' || edge.bondType === '\\') && ++this.doubleBondConfigCount % 2 === 1) {
+                if (this.doubleBondConfig === null) {
+                    this.doubleBondConfig = edge.bondType;
+                    doubleBondConfigSet = true;
+
+                    // Switch if the bond is a branch bond and previous vertex is the first
+                    // TODO: Why is it different with the first vertex?
+                    if (previousVertex.parentVertexId === null && vertex.value.branchBond) {
+                        if (this.doubleBondConfig === '/') {
+                            this.doubleBondConfig = '\\';
+                        }
+                        else if (this.doubleBondConfig === '\\') {
+                            this.doubleBondConfig = '/';
+                        }
+                    }
+                }
+            }
+        }
+
+        // If the current node is the member of one ring, then point straight away
+        // from the center of the ring. However, if the current node is a member of
+        // two rings, point away from the middle of the centers of the two rings
+        if (!skipPositioning) {
+            if (!previousVertex) {
+                // Add a (dummy) previous position if there is no previous vertex defined
+                // Since the first vertex is at (0, 0), create a vector at (bondLength, 0)
+                // and rotate it by 90°
+
+                let dummy = new Vector2(this.opts.bondLength, 0);
+                dummy.rotate(MathHelper.toRad(-60));
+
+                vertex.previousPosition = dummy;
+                vertex.setPosition(this.opts.bondLength, 0);
+                vertex.angle = MathHelper.toRad(-60);
+
+                // Do not position the vertex if it belongs to a bridged ring that is positioned using a layout algorithm.
+                if (vertex.value.bridgedRing === null) {
+                    vertex.positioned = true;
+                }
+            }
+            else if (previousVertex.value.rings.length > 0) {
+                let neighbours = previousVertex.neighbours;
+                let joinedVertex = null;
+                let pos = new Vector2(0.0, 0.0);
+
+                if (previousVertex.value.bridgedRing === null && previousVertex.value.rings.length > 1) {
+                    for (let i = 0; i < neighbours.length; i++) {
+                        let neighbour = this.graph.vertices[neighbours[i]];
+                        if (ArrayHelper.containsAll(neighbour.value.rings, previousVertex.value.rings)) {
+                            joinedVertex = neighbour;
+                            break;
+                        }
+                    }
+                }
+
+                if (joinedVertex === null) {
+                    for (let i = 0; i < neighbours.length; i++) {
+                        let v = this.graph.vertices[neighbours[i]];
+
+                        if (v.positioned && this.areVerticesInSameRing(v, previousVertex)) {
+                            pos.add(Vector2.subtract(v.position, previousVertex.position));
+                        }
+                    }
+
+                    // When ring neighbors cancel out (e.g. bridgehead with 3
+                    // neighbors at ~120°), the sum is near-zero and normalize()
+                    // would produce Infinity. Fall back to pointing away from
+                    // the ring center.
+                    if (pos.lengthSq() < 1.0) {
+                        let ring = null;
+                        if (previousVertex.value.bridgedRing !== null) {
+                            ring = this.getRing(previousVertex.value.bridgedRing);
+                        }
+                        else {
+                            ring = this.getRing(previousVertex.value.rings[0]);
+                        }
+                        if (ring && ring.center) {
+                            // Vector from center to vertex (away from ring), then
+                            // invert below makes it toward center — but we want
+                            // away, so use center-to-vertex AFTER invert:
+                            // pos = center - vertex → invert → vertex - center = away ✓
+                            pos = Vector2.subtract(ring.center, previousVertex.position);
+                        }
+                        else {
+                            pos = new Vector2(1.0, 0.0);
+                        }
+                    }
+
+                    pos.invert().normalize().multiplyScalar(this.opts.bondLength).add(previousVertex.position);
+                }
+                else {
+                    pos = joinedVertex.position.clone().rotateAround(Math.PI, previousVertex.position);
+                }
+
+                vertex.previousPosition = previousVertex.position;
+                vertex.setPositionFromVector(pos);
+                vertex.positioned = true;
+            }
+            else {
+                // If the previous vertex was not part of a ring, draw a bond based
+                // on the global angle of the previous bond
+                let v = new Vector2(this.opts.bondLength, 0);
+
+                v.rotate(angle);
+                v.add(previousVertex.position);
+
+                vertex.setPositionFromVector(v);
+                vertex.previousPosition = previousVertex.position;
+                vertex.positioned = true;
+            }
+        }
+
+        // Go to next vertex
+        // If two rings are connected by a bond ...
+        if (vertex.value.bridgedRing !== null) {
+            let nextRing = this.getRing(vertex.value.bridgedRing);
+
+            if (!nextRing.positioned) {
+                let nextCenter = Vector2.subtract(vertex.previousPosition, vertex.position);
+
+                nextCenter.invert();
+                nextCenter.normalize();
+
+                let r = MathHelper.polyCircumradius(this.opts.bondLength, nextRing.members.length);
+                nextCenter.multiplyScalar(r);
+                nextCenter.add(vertex.position);
+
+                this.createRing(nextRing, nextCenter, vertex);
+            }
+        }
+        else if (vertex.value.rings.length > 0) {
+            let nextRing = this.getRing(vertex.value.rings[0]);
+
+            if (!nextRing.positioned) {
+                let nextCenter = Vector2.subtract(vertex.previousPosition, vertex.position);
+
+                nextCenter.invert();
+                nextCenter.normalize();
+
+                let r = MathHelper.polyCircumradius(this.opts.bondLength, nextRing.getSize());
+
+                nextCenter.multiplyScalar(r);
+                nextCenter.add(vertex.position);
+
+                this.createRing(nextRing, nextCenter, vertex);
+            }
+        }
+        else {
+            // Draw the non-ring vertices connected to this one
+            let tmpNeighbours = vertex.getNeighbours();
+            let neighbours = [];
+
+            // Remove neighbours that are not drawn
+            for (let i = 0; i < tmpNeighbours.length; i++) {
+                if (this.graph.vertices[tmpNeighbours[i]].value.isDrawn) {
+                    neighbours.push(tmpNeighbours[i]);
+                }
+            }
+
+            // Remove the previous vertex (which has already been drawn)
+            if (previousVertex) {
+                neighbours = ArrayHelper.remove(neighbours, previousVertex.id);
+            }
+
+            let previousAngle = vertex.getAngle();
+
+            if (neighbours.length === 1) {
+                let nextVertex = this.graph.vertices[neighbours[0]];
+
+                let prevEdge = previousVertex ? this.graph.getEdge(vertex.id, previousVertex.id) : null;
+                let nextEdge = this.graph.getEdge(vertex.id, nextVertex.id);
+
+                // Make a single chain always cis except when there's a tribble (yes, this is a Star Trek reference) bond
+                // or if there are successive double bonds (or some other bond-heavy combo).
+                if (prevEdge && nextEdge && prevEdge.weight + nextEdge.weight >= 4) {
+                    prevEdge.center = true;
+                    nextEdge.center = true;
+                    nextVertex.angle = 0.0;
+
+                    if (prevEdge.weight === nextEdge.weight) {
+                        vertex.value.drawExplicit = true;
+                    }
+
+                    this.createNextBond(nextVertex, vertex, previousAngle + nextVertex.angle);
+                }
+                else if (previousVertex && previousVertex.value.rings.length > 0) {
+                    // If coming out of a ring, always draw away from the center of mass
+                    let proposedAngleA = MathHelper.toRad(60);
+                    let proposedAngleB = -proposedAngleA;
+
+                    let proposedVectorA = new Vector2(this.opts.bondLength, 0);
+                    let proposedVectorB = new Vector2(this.opts.bondLength, 0);
+
+                    proposedVectorA.rotate(proposedAngleA).add(vertex.position);
+                    proposedVectorB.rotate(proposedAngleB).add(vertex.position);
+
+                    // let centerOfMass = this.getCurrentCenterOfMassInNeigbourhood(vertex.position, 100);
+                    let centerOfMass = this.getCurrentCenterOfMass();
+                    let distanceA = proposedVectorA.distanceSq(centerOfMass);
+                    let distanceB = proposedVectorB.distanceSq(centerOfMass);
+
+                    nextVertex.angle = distanceA < distanceB ? proposedAngleB : proposedAngleA;
+
+                    this.createNextBond(nextVertex, vertex, previousAngle + nextVertex.angle);
+                }
+                else {
+                    let a = this.getLastAngle(vertex.id);
+                    a = (a >= 0) ? 1.0472 : -1.0472;
+
+                    // Handle configuration around double bonds
+                    if (previousVertex && !doubleBondConfigSet) {
+                        let bondType = this.graph.getEdge(vertex.id, nextVertex.id).bondType;
+
+                        if (bondType === '/') {
+                            if (this.doubleBondConfig === '/') {
+                                // Nothing to do since it will be trans per default
+                            }
+                            else if (this.doubleBondConfig === '\\') {
+                                a = -a;
+                            }
+                            this.doubleBondConfig = null;
+                        }
+                        else if (bondType === '\\') {
+                            if (this.doubleBondConfig === '/') {
+                                a = -a;
+                            }
+                            else if (this.doubleBondConfig === '\\') {
+                                // Nothing to do since it will be trans per default
+                            }
+                            this.doubleBondConfig = null;
+                        }
+                    }
+
+                    if (originShortest) {
+                        nextVertex.angle = a;
+                    }
+                    else {
+                        nextVertex.angle = -a;
+                    }
+
+                    this.createNextBond(nextVertex, vertex, previousAngle + nextVertex.angle);
+                }
+            }
+            else if (neighbours.length === 2) {
+                // If the previous vertex comes out of a ring, it doesn't have an angle set
+                let a = vertex.angle;
+                if (!a) {
+                    a = 1.0472;
+                }
+
+                // Check for the longer subtree - always go with cis for the longer subtree
+                let subTreeDepthA = this.graph.getTreeDepth(neighbours[0], vertex.id);
+                let subTreeDepthB = this.graph.getTreeDepth(neighbours[1], vertex.id);
+
+                let l = this.graph.vertices[neighbours[0]];
+                let r = this.graph.vertices[neighbours[1]];
+
+                l.value.subtreeDepth = subTreeDepthA;
+                r.value.subtreeDepth = subTreeDepthB;
+
+                // Also get the subtree for the previous direction (this is important when
+                // the previous vertex is the shortest path)
+                let subTreeDepthC = this.graph.getTreeDepth(previousVertex ? previousVertex.id : null, vertex.id);
+                if (previousVertex) {
+                    previousVertex.value.subtreeDepth = subTreeDepthC;
+                }
+
+                let cis = 0;
+                let trans = 1;
+
+                // Carbons go always cis
+                if (r.value.element === 'C' && l.value.element !== 'C' && subTreeDepthB > 1 && subTreeDepthA < 5) {
+                    cis = 1;
+                    trans = 0;
+                }
+                else if (r.value.element !== 'C' && l.value.element === 'C' && subTreeDepthA > 1 && subTreeDepthB < 5) {
+                    cis = 0;
+                    trans = 1;
+                }
+                else if (subTreeDepthB > subTreeDepthA) {
+                    cis = 1;
+                    trans = 0;
+                }
+
+                let cisVertex = this.graph.vertices[neighbours[cis]];
+                let transVertex = this.graph.vertices[neighbours[trans]];
+
+                // If the origin tree (from the previous vertex) is the shortest, make them the main chain
+                let prevShortest = (subTreeDepthC < subTreeDepthA && subTreeDepthC < subTreeDepthB);
+
+                transVertex.angle = a;
+                cisVertex.angle = -a;
+
+                if (this.doubleBondConfig === '\\') {
+                    if (transVertex.value.branchBond === '\\') {
+                        transVertex.angle = -a;
+                        cisVertex.angle = a;
+                    }
+                }
+                else if (this.doubleBondConfig === '/') {
+                    if (transVertex.value.branchBond === '/') {
+                        transVertex.angle = -a;
+                        cisVertex.angle = a;
+                    }
+                }
+
+                this.createNextBond(transVertex, vertex, previousAngle + transVertex.angle, prevShortest);
+                this.createNextBond(cisVertex,   vertex, previousAngle + cisVertex.angle,   prevShortest);
+            }
+            else if (neighbours.length > 0) {
+                // Create vertices for all drawn neighbors...
+                const vertices = neighbours.map((neighbour) => {
+                    let newvertex    = this.graph.vertices[neighbour];
+                    let subtreedepth = this.graph.getTreeDepth(neighbour, vertex.id);
+                    newvertex.value.subtreeDepth = subtreedepth;
+                    return newvertex;
+                });
+
+                // This puts all the longest subtrees on the far side...
+                // TODO: Maybe try to balance this better?
+                vertices.sort((a, b) => (b.value.subtreeDepth - a.value.subtreeDepth));
+
+                if (neighbours.length === 3
+                    && previousVertex
+                    && previousVertex.parentVertexId !== null
+                    && previousVertex.value.rings.length < 1
+                    && vertices[2].value.rings.length < 1
+                    && vertices[1].value.rings.length < 1
+                    && vertices[0].value.rings.length < 1
+                    && vertices[2].value.subtreeDepth === 1
+                    && vertices[1].value.subtreeDepth === 1
+                    && vertices[0].value.subtreeDepth > 1
+                ) {
+                    // Special logic for adding pinched pairs...
+                    // For example: CCS(=O)(=O)CC(F)(F)NC
+                    if (vertex.angle >= 0) {
+                        vertices[0].angle = -1.0472;
+                        vertices[1].angle = MathHelper.toRad(30);
+                        vertices[2].angle = MathHelper.toRad(90);
+                    }
+                    else {
+                        vertices[0].angle = +1.0472;
+                        vertices[1].angle = -MathHelper.toRad(30);
+                        vertices[2].angle = -MathHelper.toRad(90);
+                    }
+
+                    this.createNextBond(vertices[0], vertex, previousAngle + vertices[0].angle);
+                    this.createNextBond(vertices[1], vertex, previousAngle + vertices[1].angle);
+                    this.createNextBond(vertices[2], vertex, previousAngle + vertices[2].angle);
+                }
+                else {
+                    // Divide the remaining space evenly among all neighbors...
+                    const totalNeighbors = neighbours.length + (previousVertex ? 1 : 0);
+                    const angleDelta = 2 * Math.PI / totalNeighbors;
+                    let a = angleDelta; // Current angle
+                    let i = 0;          // Current index
+
+                    // We don't set vertices[x].angle here because these angles aren't useful
+                    // when alternating between cis and trans in the main chain.
+                    if (neighbours.length % 2 !== 0) {
+                        // If there are an even number, the longest neighbor goes directly across.
+                        this.createNextBond(vertices[0], vertex, previousAngle);
+                        i = 1;
+                    }
+                    else {
+                        // Otherwise, the two longest neighbors split the difference.
+                        a /= 2;
+                    }
+
+                    while (i < neighbours.length) {
+                        this.createNextBond(vertices[i + 0], vertex, previousAngle + a);
+                        this.createNextBond(vertices[i + 1], vertex, previousAngle - a);
+                        a += angleDelta;
+                        i += 2;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Gets the vetex sharing the edge that is the common bond of two rings.
+     *
+     * @param {Vertex} vertex A vertex.
+     * @returns {(Number|null)} The id of a vertex sharing the edge that is the common bond of two rings with the vertex provided or null, if none.
+     */
+    getCommonRingbondNeighbour(vertex) {
+        let neighbours = vertex.neighbours;
+
+        for (let i = 0; i < neighbours.length; i++) {
+            let neighbour = this.graph.vertices[neighbours[i]];
+
+            if (ArrayHelper.containsAll(neighbour.value.rings, vertex.value.rings)) {
+                return neighbour;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if a vector is inside any ring.
+     *
+     * @param {Vector2} vec A vector.
+     * @returns {Boolean} A boolean indicating whether or not the point (vector) is inside any of the rings associated with the current molecule.
+     */
+    isPointInRing(vec) {
+        for (let i = 0; i < this.rings.length; i++) {
+            let ring = this.rings[i];
+
+            if (!ring.positioned) {
+                continue;
+            }
+
+            let radius = MathHelper.polyCircumradius(this.opts.bondLength, ring.getSize());
+            let radiusSq = radius * radius;
+
+            if (vec.distanceSq(ring.center) < radiusSq) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check whether or not an edge is part of a ring.
+     *
+     * @param {Edge} edge An edge.
+     * @returns {Boolean} A boolean indicating whether or not the edge is part of a ring.
+     */
+    isEdgeInRing(edge) {
+        let source = this.graph.vertices[edge.sourceId];
+        let target = this.graph.vertices[edge.targetId];
+
+        return this.areVerticesInSameRing(source, target);
+    }
+
+    /**
+     * Check whether or not an edge is rotatable.
+     *
+     * @param {Edge} edge An edge.
+     * @returns {Boolean} A boolean indicating whether or not the edge is rotatable.
+     */
+    isEdgeRotatable(edge) {
+        let vertexA = this.graph.vertices[edge.sourceId];
+        let vertexB = this.graph.vertices[edge.targetId];
+
+        // Only single bonds are rotatable
+        if (edge.bondType !== '-') {
+            return false;
+        }
+
+        // Do not rotate edges that have a further single bond to each side - do that!
+        // If the bond is terminal, it doesn't make sense to rotate it
+        // if (vertexA.getNeighbourCount() + vertexB.getNeighbourCount() < 5) {
+        //   return false;
+        // }
+
+        if (vertexA.isTerminal() || vertexB.isTerminal()) {
+            return false;
+        }
+
+        // Ringbonds are not rotatable
+        if (vertexA.value.rings.length > 0 && vertexB.value.rings.length > 0 && this.areVerticesInSameRing(vertexA, vertexB)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check whether or not a ring is an implicitly defined aromatic ring (lower case smiles).
+     *
+     * @param {Ring} ring A ring.
+     * @returns {Boolean} A boolean indicating whether or not a ring is implicitly defined as aromatic.
+     */
+    isRingAromatic(ring) {
+        for (let i = 0; i < ring.members.length; i++) {
+            let vertex = this.graph.vertices[ring.members[i]];
+
+            if (!vertex.value.isPartOfAromaticRing) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check whether the ring's 2D projection is close enough to a regular
+     * polygon that the aromatic-circle indicator will sit correctly inside
+     * it. Used to decide whether an aromatic ring that has been absorbed
+     * into a bridged super-ring can still use a circle, or needs the
+     * dashed-bond fallback.
+     *
+     * Heuristic: every vertex of a regular N-gon is the same distance
+     * from the centre. We accept the ring as regular when the longest
+     * radius is no more than `tolerance` times the shortest.
+     *
+     * @param {Ring}   ring             A ring.
+     * @param {Number} [tolerance=1.15] Max acceptable max/min radius ratio.
+     * @returns {Boolean}
+     */
+    isRingRegularPolygon(ring, tolerance = 1.15) {
+        if (ring.members.length < 3) {
+            return false;
+        }
+
+        let positions = ring.getPolygon(this.graph.vertices);
+        let center    = ring.center;
+        let minR      = Infinity;
+        let maxR      = -Infinity;
+
+        for (let i = 0; i < positions.length; i++) {
+            let r = positions[i].distance(center);
+            if (r < minR) minR = r;
+            if (r > maxR) maxR = r;
+        }
+
+        if (minR < 1e-6) {
+            return false;
+        }
+
+        return (maxR / minR) < tolerance;
+    }
+
+    /**
+     * Get the normals of an edge.
+     *
+     * @param {Edge} edge An edge.
+     * @returns {Vector2[]} An array containing two vectors, representing the normals.
+     */
+    getEdgeNormals(edge) {
+        let v1 = this.graph.vertices[edge.sourceId].position;
+        let v2 = this.graph.vertices[edge.targetId].position;
+
+        // Get the normalized normals for the edge
+        let normals = Vector2.units(v1, v2);
+
+        return normals;
+    }
+
+    /**
+     * Returns an array of vertices that are neighbouring a vertix but are not members of a ring (including bridges).
+     *
+     * @param {Number} vertexId A vertex id.
+     * @returns {Vertex[]} An array of vertices.
+     */
+    getNonRingNeighbours(vertexId) {
+        let nrneighbours = [];
+        let vertex = this.graph.vertices[vertexId];
+        let neighbours = vertex.neighbours;
+
+        for (let i = 0; i < neighbours.length; i++) {
+            let neighbour = this.graph.vertices[neighbours[i]];
+            let nIntersections = ArrayHelper.intersection(vertex.value.rings, neighbour.value.rings).length;
+
+            if (nIntersections === 0 && neighbour.value.isBridge == false) {
+                nrneighbours.push(neighbour);
+            }
+        }
+
+        return nrneighbours;
+    }
+
+    /**
+     * Returns the minimum distance between any pair of non-bonded drawn atoms.
+     *
+     * @returns {Number} The minimum non-bonded distance.
+     */
+    getMinimumNonBondedDistance() {
+        let minimumDistance = Number.POSITIVE_INFINITY;
+
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            let vertexA = this.graph.vertices[i];
+
+            if (!vertexA.value.isDrawn) {
+                continue;
+            }
+
+            for (let j = i + 1; j < this.graph.vertices.length; j++) {
+                if (this.graph.hasEdge(i, j)) {
+                    continue;
+                }
+
+                let vertexB = this.graph.vertices[j];
+                if (!vertexB.value.isDrawn) {
+                    continue;
+                }
+
+                let distance = vertexA.position.distance(vertexB.position);
+                if (distance < minimumDistance) {
+                    minimumDistance = distance;
+                }
+            }
+        }
+
+        return minimumDistance;
+    }
+
+    /**
+     * Returns the number of external ring connections, counting bonds from ring members
+     * to atoms outside the ring.
+     *
+     * @param {Number} ringId A ring id.
+     * @returns {Number} The number of external connections.
+     */
+    getRingExternalConnectionCount(ringId) {
+        let ring = this.getRing(ringId);
+
+        if (!ring) {
+            return 0;
+        }
+
+        let members = new Set(ring.members);
+        let externalConnections = new Set();
+
+        for (let i = 0; i < ring.members.length; i++) {
+            let memberId = ring.members[i];
+            let vertex = this.graph.vertices[memberId];
+
+            for (let j = 0; j < vertex.neighbours.length; j++) {
+                let neighbourId = vertex.neighbours[j];
+
+                if (!members.has(neighbourId)) {
+                    externalConnections.add(`${memberId}:${neighbourId}`);
+                }
+            }
+        }
+
+        return externalConnections.size;
+    }
+
+    /**
+     * Try rigid rotations for ring systems attached through a rotatable bond after the
+     * main overlap passes have settled. This catches ring-on-ring stacking that is only
+     * obvious in the final geometry.
+     */
+    resolveRigidRingOverlaps() {
+        let currentOverlap = this.getOverlapScore().total; // total overlap score
+        let currentMinimumDistance = this.getMinimumNonBondedDistance(); // to make sure we are
+        // not creating a collision elsewhere
+        let minimumAllowedDistance = this.opts.bondLength * 0.3;
+
+        for (let i = 0; i < this.graph.edges.length; i++) {
+            let edge = this.graph.edges[i];
+            // Only single, non-terminal, non-ring bonds can be rotated.
+            if (!this.isEdgeRotatable(edge)) {
+                continue;
+            }
+
+            let subTreeDepthA = this.graph.getTreeDepth(edge.sourceId, edge.targetId);
+            let subTreeDepthB = this.graph.getTreeDepth(edge.targetId, edge.sourceId);
+            let a = edge.targetId;
+            let b = edge.sourceId;
+
+            // Rotate the shorter side of the bond.
+            // This changes less of the drawing and is less likely to disturb the rest of the layout
+            if (subTreeDepthA > subTreeDepthB) {
+                a = edge.sourceId;
+                b = edge.targetId;
+            }
+
+            let vertexA = this.graph.vertices[a];
+            let vertexB = this.graph.vertices[b];
+            let neighboursB = vertexB.getNeighbours(a);
+
+            // We only handle a very specific shape here:
+            // after removing the pivot bond to vertexA, vertexB must connect to exactly two atoms.
+            // That makes vertexB look like the entry point into one ring.
+            if (neighboursB.length !== 2) {
+                continue;
+            }
+
+            let neighbourA = this.graph.vertices[neighboursB[0]];
+            let neighbourB = this.graph.vertices[neighboursB[1]];
+
+            // Both neighbours must belong to exactly one ring.
+            // If either atom is in no ring or in multiple rings, this is not the clean rigid-ring case.
+            if (neighbourA.value.rings.length !== 1 || neighbourB.value.rings.length !== 1) {
+                continue;
+            }
+
+            // The two neighbours must belong to the same ring.
+            // This confirms that rotating around A-B will rotate one attached ring system as a rigid unit.
+            if (neighbourA.value.rings[0] !== neighbourB.value.rings[0]) {
+                continue;
+            }
+
+            let ring = this.getRing(neighbourA.value.rings[0]);
+            if (!ring) {
+                continue;
+            }
+
+            let bestAngle = 0.0;
+            let bestOverlap = currentOverlap;
+            let bestMinimumDistance = currentMinimumDistance;
+            let stepAngle = MathHelper.centralAngle(ring.getSize());
+            let maxSteps = Math.max(1, Math.floor(ring.getSize() / 2));
+
+            // TODO: same 2x speedup as the rotation loop in processGraph().
+            // Rotate incrementally instead of resetting each iteration. (See PR#237 review.)
+            for (let step = 1; step <= maxSteps; step++) {
+                let baseAngle = stepAngle * step;
+
+                for (let direction = 0; direction < 2; direction++) {
+                    let angle = direction === 0 ? baseAngle : -baseAngle;
+
+                    // rotate first by angle
+                    this.rotateSubtree(vertexB.id, vertexA.id, angle, vertexB.position);
+
+                    let newOverlap = this.getOverlapScore().total;
+                    let newMinimumDistance = this.getMinimumNonBondedDistance();
+
+                    // undo rotation once we got the score
+                    this.rotateSubtree(vertexB.id, vertexA.id, -angle, vertexB.position);
+
+                    // reject if two non-bonded atoms come too close together
+                    if (newMinimumDistance <= minimumAllowedDistance) {
+                        continue;
+                    }
+
+                    // prefer the one with a lower overlap score
+                    // and if two candidates tie, select one with more clearance between atoms
+                    if (newOverlap < bestOverlap - 1e-6
+                        || (Math.abs(newOverlap - bestOverlap) <= 1e-6 && newMinimumDistance > bestMinimumDistance + 1e-6)
+                    ) {
+                        bestAngle = angle;
+                        bestOverlap = newOverlap;
+                        bestMinimumDistance = newMinimumDistance;
+                    }
+                }
+            }
+
+            // apply the best rigid rotation if we found one
+            // Then update the "current best" baseline so later edges are judged against the improved layout.
+            if (bestAngle !== 0.0) {
+                this.rotateSubtree(vertexB.id, vertexA.id, bestAngle, vertexB.position);
+                currentOverlap = bestOverlap;
+                currentMinimumDistance = bestMinimumDistance;
+            }
+        }
+
+        // keep the stored total overlap score in sync with the final geometry after this pass.
+        this.totalOverlapScore = currentOverlap;
+    }
+
+    /**
+     * Annotated stereochemistry information for visualization.
+     */
+    annotateStereochemistry() {
+        // For each stereo-center
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            const vertex = this.graph.vertices[i];
+            if (!vertex.value.isStereoCenter) {
+                continue;
+            }
+
+            const neighbours = vertex.neighbours;
+            // Validate: a tetrahedral stereocenter needs exactly 4 bonds.
+            if (neighbours.length + vertex.value.countImplicitHydrogens() !== 4) {
+                vertex.value.isStereoCenter = false;
+                continue;
+            }
+
+            // This will return undefined if two branches are exactly equal.
+            const order = CIP.getOrderArray(this.graph, vertex);
+            if (order === undefined) {
+                vertex.value.isStereoCenter = false;
+                continue;
+            }
+
+            const parity   = MathHelper.parityOfPermutation(order);
+            const rotation = vertex.value.bracket.chirality === '@' ? -1 : 1;
+            const rs       = (parity === rotation) ? 'R' : 'S';
+            vertex.value.chirality = rs;
+
+            // Pick the best neighbor to draw a wedge to.
+            // Priority: non-stereocenter > not in same ring > visible > heteroatom > shortest subtree
+            // Note that the sort order is reversed, so higher scores get priority.
+            const wedgeOrder = order.map((o) => {
+                const nid       = neighbours[o];
+                const neighbour = this.graph.vertices[nid];
+
+                let rank = 0;
+                rank -= neighbour.value.isStereoCenter ? 1000000 : 0;
+                rank -= this.areVerticesInSameRing(neighbour, vertex) ? 100000 : 0;
+                rank += neighbour.value.isDrawn ? 10000 : 0;
+                // rank += neighbour.isTerminal() ? 1000 : 0;
+                rank += neighbour.value.element !== 'C' ? 100 : 0;
+                rank -= this.graph.getTreeDepth(nid, vertex.id);
+
+                return [rank, nid];
+            }).sort((a, b) => {
+                return b[0] - a[0];
+            });
+
+            // Set the wedge direction.
+            const wedgeId = wedgeOrder[0][1];
+            const wedge = this._computeWedgeDirection(vertex, wedgeId, order, neighbours, rs);
+            this.graph.getEdge(vertex.id, wedgeId).wedge = wedge;
+            this.graph.vertices[wedgeId].value.isDrawn = true;
+        }
+    }
+
+    /**
+     * Compute the correct wedge direction ('up' or 'down') for a bond from
+     * a stereocenter to a given neighbor, using the 3D determinant approach.
+     *
+     * The signed area of the triangle formed by the other 3 neighbors (in CIP
+     * order) determines the spatial orientation. Combined with the CIP rank
+     * parity of the wedged atom, this gives the correct solid/dashed assignment.
+     *
+     * @param {Vertex} vertex The stereocenter vertex.
+     * @param {Number} wedgeTargetId The vertex id of the neighbor being wedged.
+     * @param {number[] | Uint8Array} order CIP priority order (index→original neighbor index).
+     * @param {Number[]} neighbours The neighbor vertex ids.
+     * @param {String} rs 'R' or 'S' designation.
+     * @returns {String} 'up' (solid wedge) or 'down' (dashed wedge).
+     */
+    _computeWedgeDirection(vertex, wedgeTargetId, order, neighbours, rs) {
+        let nNeighbours = neighbours.length;
+
+        // Find CIP rank of the wedged neighbor
+        let wedgeCipRank = 0;
+        for (let j = 0; j < nNeighbours; j++) {
+            if (neighbours[order[j]] === wedgeTargetId) {
+                wedgeCipRank = j;
+                break;
+            }
+        }
+
+        // Collect 2D positions of the other neighbors in CIP order
+        let others = [];
+        for (let j = 0; j < nNeighbours; j++) {
+            if (neighbours[order[j]] !== wedgeTargetId) {
+                others.push(this.graph.vertices[neighbours[order[j]]].position);
+            }
+        }
+
+        // For 3-neighbor stereocenters (implicit H), synthesize the H position.
+        // H is lowest CIP priority and sits roughly opposite the other 3 ligands.
+        if (others.length === 2) {
+            let wedgePos = this.graph.vertices[wedgeTargetId].position;
+            let cx = (wedgePos.x + others[0].x + others[1].x) / 3;
+            let cy = (wedgePos.y + others[0].y + others[1].y) / 3;
+            others.push({
+                x: 2 * vertex.position.x - cx,
+                y: 2 * vertex.position.y - cy,
+            });
+            // H is always lowest CIP priority, so wedgeCipRank doesn't shift
+        }
+
+        // Signed area of the triangle (others[0], others[1], others[2]).
+        // In SVG coordinates (y-axis down), positive = clockwise winding.
+        let sa = (others[1].x - others[0].x) * (others[2].y - others[0].y)
+            - (others[2].x - others[0].x) * (others[1].y - others[0].y);
+
+        // When the wedged atom has even CIP rank (0, 2), solid wedge gives R
+        // when the remaining triangle winds CW (sa > 0). For odd rank (1, 3),
+        // the relationship is inverted.
+        let solidGivesR = (wedgeCipRank % 2 === 0) ? (sa > 0) : (sa < 0);
+
+        return (solidGivesR === (rs === 'R')) ? 'up' : 'down';
+    }
+
+    /**
+     * Creates pseudo-elements (such as Et, Me, Ac, Bz, ...) at the position of the carbon sets
+     * the involved atoms not to be displayed.
+     */
+    initPseudoElements() {
+        for (let i = 0; i < this.graph.vertices.length; i++) {
+            const vertex = this.graph.vertices[i];
+            const neighbourIds = vertex.neighbours;
+            let neighbours = Array(neighbourIds.length);
+
+            for (let j = 0; j < neighbourIds.length; j++) {
+                neighbours[j] = this.graph.vertices[neighbourIds[j]];
+            }
+
+            // Ignore atoms that have less than 3 neighbours, except if
+            // the vertex is connected to a ring and has two neighbours
+            if (vertex.getNeighbourCount() < 3 || vertex.value.rings.length > 0) {
+                continue;
+            }
+
+            // TODO: This exceptions should be handled more elegantly (via config file?)
+
+            // Ignore phosphates (especially for triphosphates)
+            if (vertex.value.element === 'P') {
+                continue;
+            }
+
+            // Ignore also guanidine
+            if (vertex.value.element === 'C'
+                && neighbours.length === 3
+                && neighbours[0].value.element === 'N'
+                && neighbours[1].value.element === 'N'
+                && neighbours[2].value.element === 'N'
+            ) {
+                continue;
+            }
+
+            // Continue if there are less than two heteroatoms
+            // or if a neighbour has more than 1 neighbour
+            let heteroAtomCount = 0;
+            let ctn = 0;
+
+            for (let j = 0; j < neighbours.length; j++) {
+                let neighbour = neighbours[j];
+                let neighbouringElement = neighbour.value.element;
+                let neighbourCount = neighbour.getNeighbourCount();
+
+                if (neighbouringElement !== 'C' && neighbouringElement !== 'H' && neighbourCount === 1) {
+                    heteroAtomCount++;
+                }
+
+                if (neighbourCount > 1) {
+                    ctn++;
+                }
+            }
+
+            if (ctn > 1 || heteroAtomCount < 2) {
+                continue;
+            }
+
+            // Get the previous atom (the one which is not terminal)
+            let previous = null;
+
+            for (let j = 0; j < neighbours.length; j++) {
+                let neighbour = neighbours[j];
+
+                if (neighbour.getNeighbourCount() > 1) {
+                    previous = neighbour;
+                }
+            }
+
+            for (let j = 0; j < neighbours.length; j++) {
+                let neighbour = neighbours[j];
+
+                if (neighbour.getNeighbourCount() > 1) {
+                    continue;
+                }
+
+                neighbour.value.isDrawn = false;
+
+                let hydrogens = neighbour.value.countImplicitHydrogens();
+                let charge = '';
+
+                if (neighbour.value.bracket) {
+                    charge = neighbour.value.bracket.charge || 0;
+                }
+
+                vertex.value.attachPseudoElement(neighbour.value.element, previous ? previous.value.element : null, hydrogens, charge);
+            }
+        }
+
+    /*
+    // The second pass
+    for (let i = 0; i < this.graph.vertices.length; i++) {
+      const vertex = this.graph.vertices[i];
+      const atom = vertex.value;
+      const element = atom.element;
+
+      if (element === 'C' || element === 'H' || !atom.isDrawn) {
+        continue;
+      }
+
+      const neighbourIds = vertex.neighbours;
+      let neighbours = Array(neighbourIds.length);
+
+      for (let j = 0; j < neighbourIds.length; j++) {
+        neighbours[j] = this.graph.vertices[neighbourIds[j]];
+      }
+
+      for (let j = 0; j < neighbours.length; j++) {
+        let neighbour = neighbours[j].value;
+
+        if (!neighbour.hasAttachedPseudoElements || neighbour.getAttachedPseudoElementsCount() !== 2) {
+          continue;
+        }
+
+        const pseudoElements = neighbour.getAttachedPseudoElements();
+
+        if (neighbour.element === 'C' && pseudoElements.hasOwnProperty('0O') && pseudoElements.hasOwnProperty('3C')) {
+          if (pseudoElements['0O'].count === 1 && pseudoElements['3C'].count === 1) {
+            neighbour.isDrawn = false;
+            vertex.value.attachPseudoElement('Ac', '', 0);
+          }
+        }
+        else if (neighbour.element === 'S' && pseudoElements.hasOwnProperty('0O') && pseudoElements.hasOwnProperty('3C')) {
+          if (pseudoElements['0O'].count === 2 && pseudoElements['3C'].count === 1) {
+            neighbour.isDrawn = false;
+            vertex.value.attachPseudoElement('Ms', '', 0);
+          }
+        }
+      }
+    }
+      */
+    }
+}

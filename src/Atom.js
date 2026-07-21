@@ -1,0 +1,439 @@
+// @ts-check
+import ArrayHelper from './ArrayHelper';
+
+/**
+ * A class representing an atom.
+ *
+ * @property {String} element The element symbol of this atom. Single-letter symbols are always uppercase. Examples: H, C, F, Br, Si, ...
+ * @property {Boolean} drawExplicit A boolean indicating whether or not this atom is drawn explicitly (for example, a carbon atom). This overrides the default behaviour.
+ * @property {Object[]} ringbonds An array containing the ringbond ids and bond types as specified in the original SMILE.
+ * @property {String} branchBond The branch bond as defined in the SMILES.
+ * @property {Number} ringbonds[].id The ringbond id as defined in the SMILES.
+ * @property {String} ringbonds[].bondType The bond type of the ringbond as defined in the SMILES.
+ * @property {Number[]} rings The ids of rings which contain this atom.
+ * @property {String} bondType The bond type associated with this array. Examples: -, =, #, ...
+ * @property {Boolean} isBridge A boolean indicating whether or not this atom is part of a bridge in a bridged ring (contained by the largest ring).
+ * @property {Boolean} isBridgeNode A boolean indicating whether or not this atom is a bridge node (a member of the largest ring in a bridged ring which is connected to a bridge-atom).
+ * @property {Number[]} originalRings Used to back up rings when they are replaced by a bridged ring.
+ * @property {Number} bridgedRing The id of the bridged ring if the atom is part of a bridged ring.
+ * @property {Number[]} anchoredRings The ids of the rings that are anchored to this atom. The centers of anchored rings are translated when this atom is translated.
+ * @property {Object} bracket If this atom is defined as a bracket atom in the original SMILES, this object contains all the bracket information. Example: { hcount: {Number}, charge: ['--', '-', '+', '++'], isotope: {Number} }.
+ * @property {Number} plane Specifies on which "plane" the atoms is in stereochemical deptictions (-1 back, 0 middle, 1 front).
+ * @property {Object[]} attachedPseudoElements A map with containing information for pseudo elements or concatinated elements. The key is comprised of the element symbol and the hydrogen count.
+ * @property {String} attachedPseudoElement[].element The element symbol.
+ * @property {Number} attachedPseudoElement[].count The number of occurences that match the key.
+ * @property {Number} attachedPseudoElement[].hyrogenCount The number of hydrogens attached to each atom matching the key.
+ * @property {Boolean} hasAttachedPseudoElements A boolean indicating whether or not this attom will be drawn with an attached pseudo element or concatinated elements.
+ * @property {Boolean} isDrawn A boolean indicating whether or not this atom is drawn. In contrast to drawExplicit, the bond is drawn neither.
+ * @property {Boolean} isConnectedToRing A boolean indicating whether or not this atom is directly connected (but not a member of) a ring.
+ * @property {String[]} neighbouringElements An array containing the element symbols of neighbouring atoms.
+ * @property {Boolean} isPartOfAromaticRing A boolean indicating whether or not this atom is part of an explicitly defined aromatic ring. Example: c1ccccc1.
+ * @property {Number} bondCount The number of bonds in which this atom is participating.
+ * @property {String} chirality The chirality of this atom if it is a stereocenter (R or S).
+ * @property {Number} priority The priority of this atom acording to the CIP rules, where 0 is the highest priority.
+ * @property {Boolean} mainChain A boolean indicating whether or not this atom is part of the main chain (used for chirality).
+ * @property {Number} subtreeDepth The depth of the subtree coming from a stereocenter.
+ * @property {Number} class
+ */
+export default class Atom {
+    /**
+     * The constructor of the class Atom.
+     *
+     * @param {String} element The one-letter code of the element.
+     * @param {String} [bondType='-'] The type of the bond associated with this atom.
+     */
+    constructor(element, bondType = '-') {
+        this.idx = null;
+        this.element = element.length === 1 ? element.toUpperCase() : element;
+        this.drawExplicit = false;
+        this.ringbonds = [];
+        this.rings = [];
+        this.bondType = bondType;
+        this.branchBond = null;
+        this.isBridge = false;
+        this.isBridgeNode = false;
+        this.originalRings = [];
+        this.bridgedRing = null;
+        this.anchoredRings = [];
+        this.bracket = null;
+        this.plane = 0;
+        this.attachedPseudoElements = {};
+        this.hasAttachedPseudoElements = false;
+        this.isDrawn = true;
+        this.isConnectedToRing = false;
+        this.neighbouringElements = [];
+        this.isPartOfAromaticRing = element !== this.element;
+        this.bondCount = 0;
+        this.chirality = '';
+        this.isStereoCenter = false;
+        this.priority = 0;
+        this.mainChain = false;
+        this.subtreeDepth = 1;
+        this.class = undefined;
+    }
+
+    /**
+     * Adds a neighbouring element to this atom.
+     *
+     * @param {String} element A string representing an element.
+     */
+    addNeighbouringElement(element) {
+        this.neighbouringElements.push(element);
+    }
+
+    /**
+     * Attaches a pseudo element (e.g. Ac) to the atom.
+     * @param {String} element The element identifier (e.g. Br, C, ...).
+     * @param {String} previousElement The element that is part of the main chain (not the terminals that are converted to the pseudo element or concatinated).
+     * @param {Number} [hydrogenCount=0] The number of hydrogens for the element.
+     * @param {Number} [charge=0] The charge for the element.
+     */
+    attachPseudoElement(element, previousElement, hydrogenCount = 0, charge = 0) {
+        if (hydrogenCount === null) {
+            hydrogenCount = 0;
+        }
+
+        if (charge === null) {
+            charge = 0;
+        }
+
+        let key = hydrogenCount + element + charge;
+
+        if (this.attachedPseudoElements[key]) {
+            this.attachedPseudoElements[key].count += 1;
+        }
+        else {
+            this.attachedPseudoElements[key] = {
+                element:         element,
+                count:           1,
+                hydrogenCount:   hydrogenCount,
+                previousElement: previousElement,
+                charge:          charge,
+            };
+        }
+
+        this.hasAttachedPseudoElements = true;
+    }
+
+    /**
+     * Returns the attached pseudo elements sorted by hydrogen count (ascending).
+     *
+     * @returns {Object} The sorted attached pseudo elements.
+     */
+    getAttachedPseudoElements() {
+        let ordered = {};
+
+        Object.keys(this.attachedPseudoElements).sort().forEach((key) => {
+            ordered[key] = this.attachedPseudoElements[key];
+        });
+
+        return ordered;
+    }
+
+    /**
+     * Returns the number of attached pseudo elements.
+     *
+     * @returns {Number} The number of attached pseudo elements.
+     */
+    getAttachedPseudoElementsCount() {
+        return Object.keys(this.attachedPseudoElements).length;
+    }
+
+    /**
+     * Returns whether this atom is a heteroatom (not C and not H).
+     *
+     * @returns {Boolean} A boolean indicating whether this atom is a heteroatom.
+     */
+    isHeteroAtom() {
+        return this.element !== 'C' && this.element !== 'H';
+    }
+
+    /**
+     * Defines this atom as the anchor for a ring. When doing repositionings of the vertices and the vertex associated with this atom is moved, the center of this ring is moved as well.
+     *
+     * @param {Number} ringId A ring id.
+     */
+    addAnchoredRing(ringId) {
+        if (!ArrayHelper.contains(this.anchoredRings, {value: ringId})) {
+            this.anchoredRings.push(ringId);
+        }
+    }
+
+    /**
+     * Returns the number of ringbonds (breaks in rings to generate the MST of the smiles) within this atom is connected to.
+     *
+     * @returns {Number} The number of ringbonds this atom is connected to.
+     */
+    getRingbondCount() {
+        return this.ringbonds.length;
+    }
+
+    /**
+     * Backs up the current rings.
+     */
+    backupRings() {
+        this.originalRings = Array(this.rings.length);
+
+        for (let i = 0; i < this.rings.length; i++) {
+            this.originalRings[i] = this.rings[i];
+        }
+    }
+
+    /**
+     * Restores the most recent backed up rings.
+     */
+    restoreRings() {
+        this.rings = Array(this.originalRings.length);
+
+        for (let i = 0; i < this.originalRings.length; i++) {
+            this.rings[i] = this.originalRings[i];
+        }
+    }
+
+    /**
+     * Checks whether or not two atoms share a common ringbond id. A ringbond is a break in a ring created when generating the spanning tree of a structure.
+     *
+     * @param {Atom} atomA An atom.
+     * @param {Atom} atomB An atom.
+     * @returns {Boolean} A boolean indicating whether or not two atoms share a common ringbond.
+     */
+    haveCommonRingbond(atomA, atomB) {
+        for (let i = 0; i < atomA.ringbonds.length; i++) {
+            for (let j = 0; j < atomB.ringbonds.length; j++) {
+                if (atomA.ringbonds[i].id == atomB.ringbonds[j].id) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check whether or not the neighbouring elements of this atom equal the supplied array.
+     *
+     * @param {String[]} arr An array containing all the elements that are neighbouring this atom. E.g. ['C', 'O', 'O', 'N']
+     * @returns {Boolean} A boolean indicating whether or not the neighbours match the supplied array of elements.
+     */
+    neighbouringElementsEqual(arr) {
+        if (arr.length !== this.neighbouringElements.length) {
+            return false;
+        }
+
+        arr.sort();
+        this.neighbouringElements.sort();
+
+        for (let i = 0; i < this.neighbouringElements.length; i++) {
+            if (arr[i] !== this.neighbouringElements[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get the atomic number of this atom.
+     *
+     * @returns {Number} The atomic number of this atom.
+     */
+    getAtomicNumber() {
+        return Atom.atomicNumbers[this.element];
+    }
+
+    /**
+     * Counts the implicit hydrogens attached to this atom.
+     *
+     * This function deals with hydrogens specified in SMILES brackets
+     * and inferred based on bond counts and normal valences (see the
+     * VALENCES constant below).  It does NOT count any hydrogens that
+     * are attached as separate atoms in the SMILES string ([H]Cl).
+     *
+     * @returns {number} The number of implicit hydrogens attached to this atom.
+     */
+    countImplicitHydrogens() {
+        if (this.bracket) {
+            if (this.bracket.chirality) {
+                // We add hydrogens to chiral atoms explicitly.
+                return 0;
+            }
+            else {
+                // But otherwise, the bracket count is accurate.
+                return this.bracket.hcount || 0;
+            }
+        }
+
+        let bonds = this.bondCount;
+        if (this.isPartOfAromaticRing) {
+            if (this.element !== 'C') {
+                // This is a HACK to set heteroatoms to a sensible default.
+                // TODO: The correct fix for this is kekulization.
+                return 0;
+            }
+
+            // This is also definitely a HACK for something...
+            // TODO: Figure out what and fix the real issue!
+            bonds += 1;
+        }
+
+        const valences = Atom.VALENCES[this.element];
+        if (valences === undefined) {
+            return 0;
+        }
+
+        const valence = valences.find(n => (n >= bonds));
+        if (valence !== undefined) {
+            return valence - bonds;
+        }
+
+        return 0;
+    }
+
+    // Possible valences according to OpenSMILES
+    // http://opensmiles.org/opensmiles.html#orgsbst
+    static VALENCES = {
+        H:  [1],
+        B:  [3],
+        C:  [4],
+        N:  [3, 5],
+        O:  [2],
+        F:  [1],
+        P:  [3, 5],
+        S:  [2, 4, 6],
+        Cl: [1],
+        Br: [1],
+        I:  [1],
+    };
+
+    /**
+     * A map mapping element symbols to the atomic number.
+     */
+    static get atomicNumbers() {
+        return {
+            H:   1,
+            He:  2,
+            Li:  3,
+            Be:  4,
+            B:   5,
+            b:   5,
+            C:   6,
+            c:   6,
+            N:   7,
+            n:   7,
+            O:   8,
+            o:   8,
+            F:   9,
+            Ne:  10,
+            Na:  11,
+            Mg:  12,
+            Al:  13,
+            Si:  14,
+            P:   15,
+            p:   15,
+            S:   16,
+            s:   16,
+            Cl:  17,
+            Ar:  18,
+            K:   19,
+            Ca:  20,
+            Sc:  21,
+            Ti:  22,
+            V:   23,
+            Cr:  24,
+            Mn:  25,
+            Fe:  26,
+            Co:  27,
+            Ni:  28,
+            Cu:  29,
+            Zn:  30,
+            Ga:  31,
+            Ge:  32,
+            As:  33,
+            Se:  34,
+            Br:  35,
+            Kr:  36,
+            Rb:  37,
+            Sr:  38,
+            Y:   39,
+            Zr:  40,
+            Nb:  41,
+            Mo:  42,
+            Tc:  43,
+            Ru:  44,
+            Rh:  45,
+            Pd:  46,
+            Ag:  47,
+            Cd:  48,
+            In:  49,
+            Sn:  50,
+            Sb:  51,
+            Te:  52,
+            I:   53,
+            Xe:  54,
+            Cs:  55,
+            Ba:  56,
+            La:  57,
+            Ce:  58,
+            Pr:  59,
+            Nd:  60,
+            Pm:  61,
+            Sm:  62,
+            Eu:  63,
+            Gd:  64,
+            Tb:  65,
+            Dy:  66,
+            Ho:  67,
+            Er:  68,
+            Tm:  69,
+            Yb:  70,
+            Lu:  71,
+            Hf:  72,
+            Ta:  73,
+            W:   74,
+            Re:  75,
+            Os:  76,
+            Ir:  77,
+            Pt:  78,
+            Au:  79,
+            Hg:  80,
+            Tl:  81,
+            Pb:  82,
+            Bi:  83,
+            Po:  84,
+            At:  85,
+            Rn:  86,
+            Fr:  87,
+            Ra:  88,
+            Ac:  89,
+            Th:  90,
+            Pa:  91,
+            U:   92,
+            Np:  93,
+            Pu:  94,
+            Am:  95,
+            Cm:  96,
+            Bk:  97,
+            Cf:  98,
+            Es:  99,
+            Fm:  100,
+            Md:  101,
+            No:  102,
+            Lr:  103,
+            Rf:  104,
+            Db:  105,
+            Sg:  106,
+            Bh:  107,
+            Hs:  108,
+            Mt:  109,
+            Ds:  110,
+            Rg:  111,
+            Cn:  112,
+            Uut: 113,
+            Uuq: 114,
+            Uup: 115,
+            Uuh: 116,
+            Uus: 117,
+            Uuo: 118,
+        };
+    }
+}

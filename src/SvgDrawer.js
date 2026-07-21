@@ -1,0 +1,562 @@
+// @ts-check
+// we use the drawer to do all the preprocessing. then we take over the drawing
+// portion to output to svg
+import ArrayHelper  from './ArrayHelper';
+import Atom         from './Atom';
+import DrawerBase   from './DrawerBase';
+import GaussDrawer  from './GaussDrawer';
+import Line         from './Line';
+import Ring         from './Ring';
+import SvgWrapper   from './SvgWrapper';
+import ThemeManager from './ThemeManager';
+import Vector2      from './Vector2';
+
+export default class SvgDrawer {
+    constructor(options, clear = true) {
+        this.preprocessor = new DrawerBase(options);
+        this.opts = this.preprocessor.opts;
+        this.clear = clear;
+        this.svgWrapper = null;
+    }
+
+    /**
+     * Draws the parsed smiles data to an svg element.
+     *
+     * @param {Object} data The tree returned by the smiles parser.
+     * @param {?(string|String|Element)} target The id of the HTML svg element the structure is drawn to - or the element itself.
+     * @param {String} themeName='dark' The name of the theme to use. Built-in themes are 'light' and 'dark'.
+     * @param {Boolean} infoOnly=false Only output info on the molecule without drawing anything to the canvas.
+     *
+     * @returns {SVGSVGElement} The (possibly new) SVG element that was drawn to.
+     */
+    draw(data, target, themeName = 'light', weights = null, infoOnly = false, highlight_atoms = [], weightsNormalized = false) {
+        let svg = null;
+
+        if (target === null || target === 'svg') {
+            svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            svg.setAttributeNS(null, 'width', this.opts.width);
+            svg.setAttributeNS(null, 'height', this.opts.height);
+        }
+        else if (target instanceof String) {
+            svg = document.getElementById(target.valueOf());
+        }
+        else if (typeof target === 'string') {
+            svg = document.getElementById(target);
+        }
+        else {
+            svg = target;
+        }
+
+        if (!(svg instanceof SVGSVGElement)) {
+            throw Error('Second argument was not an SVG or the ID of an SVG.');
+        }
+
+        let optionBackup = {
+            padding:        this.opts.padding,
+            compactDrawing: this.opts.compactDrawing,
+        };
+
+        // Overwrite options when weights are added
+        if (weights !== null) {
+            this.opts.padding += this.opts.weights.additionalPadding;
+            this.opts.compactDrawing = false;
+        }
+
+        let preprocessor = this.preprocessor;
+
+        preprocessor.initDraw(data, themeName, infoOnly, highlight_atoms);
+
+        if (!infoOnly) {
+            this.themeManager = new ThemeManager(this.opts.themes, themeName);
+            if (this.svgWrapper === null || this.clear) {
+                this.svgWrapper = new SvgWrapper(this.themeManager, svg, this.opts, this.clear);
+            }
+        }
+
+        preprocessor.processGraph();
+
+        // Set the canvas to the appropriate size
+        this.svgWrapper.determineDimensions(preprocessor.graph.vertices);
+
+        // Do the actual drawing
+        this.drawAtomHighlights(preprocessor.opts.debug);
+        this.drawEdges(preprocessor.opts.debug);
+        this.drawVertices(preprocessor.opts.debug);
+
+        if (weights !== null) {
+            this.drawWeights(weights, weightsNormalized);
+        }
+
+        if (preprocessor.opts.debug) {
+            console.debug('SvgDrawer::draw()', {
+                graph:           preprocessor.graph,
+                rings:           preprocessor.rings,
+                ringConnections: preprocessor.ringConnections,
+            });
+        }
+
+        this.svgWrapper.constructSvg();
+
+        // Reset options in case weights were added.
+        if (weights !== null) {
+            this.opts.padding = optionBackup.padding;
+            this.opts.compactDrawing = optionBackup.padding;
+        }
+
+        return svg;
+    }
+
+    /**
+     * Draws the parsed smiles data to a canvas element.
+     *
+     * @param {Object} data The tree returned by the smiles parser.
+     * @param {(string|String|HTMLCanvasElement)} target The id of the HTML canvas element the structure is drawn to - or the element itself.
+     * @param {String} themeName='dark' The name of the theme to use. Built-in themes are 'light' and 'dark'.
+     * @param {Boolean} infoOnly=false Only output info on the molecule without drawing anything to the canvas.
+     */
+    drawCanvas(data, target, themeName = 'light', infoOnly = false) {
+        let canvas = null;
+        if (target instanceof String) {
+            canvas = document.getElementById(target.valueOf());
+        }
+        else if (typeof target === 'string') {
+            canvas = document.getElementById(target);
+        }
+        else {
+            canvas = target;
+        }
+
+        if (!(canvas instanceof HTMLCanvasElement)) {
+            throw Error('Second argument was not a canvas or the ID of a canvas.');
+        }
+
+        let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        // 500 as a size is arbritrary, but the canvas is scaled when drawn to the canvas anyway
+        svg.setAttributeNS(null, 'viewBox', '0 0 ' + 500 + ' ' + 500);
+        svg.setAttributeNS(null, 'width', 500 + '');
+        svg.setAttributeNS(null, 'height', 500 + '');
+        svg.setAttributeNS(null, 'style', 'visibility: hidden: position: absolute; left: -1000px');
+        document.body.appendChild(svg);
+        this.draw(data, svg, themeName, infoOnly);
+        this.svgWrapper.toCanvas(canvas, this.opts.width, this.opts.height);
+        document.body.removeChild(svg);
+        return target;
+    }
+
+    /**
+     * Draws a ring inside a provided ring, indicating aromaticity.
+     *
+     * @param {Ring} ring A ring.
+     */
+    drawAromaticityRing(ring) {
+        let svgWrapper = this.svgWrapper;
+        svgWrapper.drawRing(ring.center.x, ring.center.y, ring.getSize());
+    }
+
+    /**
+     * Draw the actual edges as bonds.
+     *
+     * @param {Boolean} debug A boolean indicating whether or not to draw debug helpers.
+     */
+    drawEdges(debug) {
+        let preprocessor = this.preprocessor,
+            graph = preprocessor.graph,
+            rings = preprocessor.rings,
+            drawn = Array(this.preprocessor.graph.edges.length);
+
+        drawn.fill(false);
+
+        graph.traverseBF(0, (vertex) => {
+            let edges = graph.getEdges(vertex.id);
+            for (let i = 0; i < edges.length; i++) {
+                let edgeId = edges[i];
+                if (!drawn[edgeId]) {
+                    drawn[edgeId] = true;
+                    this.drawEdge(edgeId, debug);
+                }
+            }
+        });
+
+        // Draw the inner circle that marks an aromatic ring (benzene as
+        // hexagon + circle) rings that are part of a bridged system still
+        // get the circle as long as their 2D projection is close enough to
+        // a regular polygon (e.g a flat pyrrole face of a bridged bicyclic).
+        // If the projection is distorted (i.e. not close to a regular polygone), we
+        // skip the circle here and let drawEdge fall back to dashed bonds
+        // long term fix is to kekulise aromatic input for bridged systems in
+        // the parser so the fallback is no longer needed
+        for (let i = 0; i < rings.length; i++) {
+            let ring = rings[i];
+
+            if (!preprocessor.isRingAromatic(ring)) continue;
+
+            if (ring.isPartOfBridged && !preprocessor.isRingRegularPolygon(ring)) {
+                continue;
+            }
+
+            this.drawAromaticityRing(ring);
+        }
+    }
+
+    /**
+     * Draw the an edge as a bond.
+     *
+     * @param {Number} edgeId An edge id.
+     * @param {Boolean} debug A boolean indicating whether or not to draw debug helpers.
+     */
+    drawEdge(edgeId, debug) {
+        let preprocessor = this.preprocessor,
+            opts = preprocessor.opts,
+            svgWrapper = this.svgWrapper,
+            edge = preprocessor.graph.edges[edgeId],
+            vertexA = preprocessor.graph.vertices[edge.sourceId],
+            vertexB = preprocessor.graph.vertices[edge.targetId],
+            elementA = vertexA.value.element,
+            elementB = vertexB.value.element;
+
+        if ((!vertexA.value.isDrawn || !vertexB.value.isDrawn) && preprocessor.opts.atomVisualization === 'default') {
+            return;
+        }
+
+        const color = svgWrapper.getBondColor(vertexA, vertexB);
+
+        let a = vertexA.position,
+            b = vertexB.position,
+            normals = preprocessor.getEdgeNormals(edge),
+            // Create a point on each side of the line
+            sides = ArrayHelper.clone(normals);
+
+        sides[0].multiplyScalar(10).add(a);
+        sides[1].multiplyScalar(10).add(a);
+
+        // The third condition handles aromatic bonds inside a bridged ring
+        // system whose 2D projection is too distorted for the usual
+        // aromatic circle (e.g. paracyclophane, triptycene). Those bonds
+        // get drawn as a solid line with a dashed parallel inside the ring.
+        // If the aromatic ring is still close to a regular polygon (e.g.
+        // a flat pyrrole on a bridged bicyclic) we skip this branch and let
+        // drawEdges draw the circle as usual.
+        // The long-term fix is to kekulise aromatic input for bridged
+        // systems in the parser (explicit single/double) so the fallback
+        // is no longer needed.
+        let aromaticRing = (edge.isPartOfAromaticRing
+            && vertexA.value.bridgedRing !== null
+            && vertexB.value.bridgedRing !== null)
+            ? preprocessor.getLargestOrAromaticCommonRing(vertexA, vertexB)
+            : null;
+
+        if (edge.bondType === '='
+            || preprocessor.getRingbondType(vertexA, vertexB) === '='
+            || (aromaticRing && !preprocessor.isRingRegularPolygon(aromaticRing))
+        ) {
+            // Always draw double bonds inside the ring
+            let inRing = preprocessor.areVerticesInSameRing(vertexA, vertexB);
+            let s = preprocessor.chooseSide(vertexA, vertexB, sides);
+
+            if (inRing) {
+                // Always draw double bonds inside a ring
+                // if the bond is shared by two rings, it is drawn in the larger
+                // problem: smaller ring is aromatic, bond is still drawn in larger -> fix this
+                let lcr = preprocessor.getLargestOrAromaticCommonRing(vertexA, vertexB);
+                let center = lcr.center;
+
+                normals[0].multiplyScalar(opts.bondSpacing);
+                normals[1].multiplyScalar(opts.bondSpacing);
+
+                // Choose the normal that is on the same side as the center
+                let line = null;
+
+                if (center.sameSideAs(vertexA.position, vertexB.position, Vector2.add(a, normals[0]))) {
+                    line = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+                }
+                else {
+                    line = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+                }
+
+                line.shorten(opts.bondLength - opts.shortBondLength * opts.bondLength);
+
+                // Set dashed to true if the edge is part of an aromatic ring:
+                svgWrapper.drawLine(line, edge.isPartOfAromaticRing, color);
+                svgWrapper.drawLine(new Line(a, b, elementA, elementB), false, color);
+            }
+            else if (edge.center
+                || (vertexA.isTerminal() && vertexB.isTerminal())
+                || (s.anCount == 0 && s.bnCount > 1)
+                || (s.bnCount == 0 && s.anCount > 1)
+            ) {
+                this.multiplyNormals(normals, opts.halfBondSpacing);
+
+                let lineA = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB),
+                    lineB = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+
+                svgWrapper.drawLine(lineA, false, color);
+                svgWrapper.drawLine(lineB, false, color);
+            }
+            else if ((s.sideCount[0] > s.sideCount[1]) || (s.totalSideCount[0] > s.totalSideCount[1])) {
+                this.multiplyNormals(normals, opts.bondSpacing);
+
+                let line = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+
+                line.shorten(opts.bondLength - opts.shortBondLength * opts.bondLength);
+
+                svgWrapper.drawLine(line, false, color);
+                svgWrapper.drawLine(new Line(a, b, elementA, elementB), false, color);
+            }
+            else if ((s.sideCount[0] < s.sideCount[1]) || (s.totalSideCount[0] <= s.totalSideCount[1])) {
+                this.multiplyNormals(normals, opts.bondSpacing);
+
+                let line = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+
+                line.shorten(opts.bondLength - opts.shortBondLength * opts.bondLength);
+                svgWrapper.drawLine(line, false, color);
+                svgWrapper.drawLine(new Line(a, b, elementA, elementB), false, color);
+            }
+        }
+        else if (edge.bondType === '#') {
+            normals[0].multiplyScalar(opts.bondSpacing / 1.5);
+            normals[1].multiplyScalar(opts.bondSpacing / 1.5);
+
+            let lineA = new Line(Vector2.add(a, normals[0]), Vector2.add(b, normals[0]), elementA, elementB);
+            let lineB = new Line(Vector2.add(a, normals[1]), Vector2.add(b, normals[1]), elementA, elementB);
+
+            svgWrapper.drawLine(lineA, false, color);
+            svgWrapper.drawLine(lineB, false, color);
+            svgWrapper.drawLine(new Line(a, b, elementA, elementB), false, color);
+        }
+        else if (edge.bondType === '.') {
+            // TODO: Something... maybe... version 2?
+        }
+        else {
+            let isChiralCenterA = vertexA.value.isStereoCenter;
+            let isChiralCenterB = vertexB.value.isStereoCenter;
+
+            if (edge.wedge === 'up') {
+                svgWrapper.drawWedge(new Line(a, b, elementA, elementB, isChiralCenterA, isChiralCenterB), color);
+            }
+            else if (edge.wedge === 'down') {
+                svgWrapper.drawDashedWedge(new Line(a, b, elementA, elementB, isChiralCenterA, isChiralCenterB), color);
+            }
+            else {
+                svgWrapper.drawLine(new Line(a, b, elementA, elementB, isChiralCenterA, isChiralCenterB), false, color);
+            }
+        }
+
+        if (debug) {
+            let midpoint = Vector2.midpoint(a, b);
+            svgWrapper.drawDebugText(midpoint.x, midpoint.y, 'e' + edgeId, '#0c0');
+        }
+    }
+
+    /**
+     * Draw the highlights for atoms to the canvas.
+     *
+     * @param {Boolean} _debug UNUSED
+     */
+    drawAtomHighlights(_debug) {
+        let preprocessor = this.preprocessor;
+        let graph = preprocessor.graph;
+        let svgWrapper = this.svgWrapper;
+
+        for (let i = 0; i < graph.vertices.length; i++) {
+            let vertex = graph.vertices[i];
+            let atom = vertex.value;
+
+            for (let j = 0; j < preprocessor.highlight_atoms.length; j++) {
+                let highlight = preprocessor.highlight_atoms[j];
+                if (atom.class === highlight[0]) {
+                    svgWrapper.drawAtomHighlight(vertex.position.x, vertex.position.y, highlight[1]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Draws the vertices representing atoms to the canvas.
+     *
+     * @param {Boolean} debug A boolean indicating whether or not to draw debug messages to the canvas.
+     */
+    drawVertices(debug) {
+        let preprocessor = this.preprocessor,
+            opts = preprocessor.opts,
+            graph = preprocessor.graph,
+            rings = preprocessor.rings,
+            svgWrapper = this.svgWrapper;
+
+        for (let i = 0; i < graph.vertices.length; i++) {
+            let vertex = graph.vertices[i];
+            let atom = vertex.value;
+            let charge = 0;
+            let isotope = 0;
+            let element = atom.element;
+            let hydrogens = atom.countImplicitHydrogens();
+            let dir = vertex.getTextDirection(graph.vertices, atom.hasAttachedPseudoElements);
+            const showCarbonsMode = DrawerBase.getEffectiveShowCarbonsMode(opts);
+            let isTerminal = (showCarbonsMode === 'terminal' || element !== 'C' || atom.hasAttachedPseudoElements) ? vertex.isTerminal() : false;
+            let isCarbon = atom.element === 'C';
+
+            if (element === 'C') {
+                const isRingCarbon = atom.rings && atom.rings.length > 0;
+                if (showCarbonsMode === 'none') {
+                    isCarbon = true;
+                    isTerminal = false;
+                }
+                else if (showCarbonsMode === 'all') {
+                    isCarbon = false;
+                    isTerminal = true;
+                }
+                else if (showCarbonsMode === 'acyclic' && !isRingCarbon) {
+                    isCarbon = false;
+                    isTerminal = true;
+                }
+            }
+
+            if (atom.bracket) {
+                charge = atom.bracket.charge;
+                isotope = atom.bracket.isotope;
+            }
+
+            // If the molecule has less than 3 elements, always write the "C" for carbon
+            // Likewise, if the carbon has a charge or an isotope, always draw it
+            if (charge || isotope || graph.vertices.length < 3) {
+                isCarbon = false;
+            }
+
+            if (opts.atomVisualization === 'allballs') {
+                svgWrapper.drawBall(vertex.position.x, vertex.position.y, element);
+            }
+            else if ((atom.isDrawn && (!isCarbon || atom.drawExplicit || isTerminal || atom.hasAttachedPseudoElements)) || graph.vertices.length === 1) {
+                if (opts.atomVisualization === 'default') {
+                    let attachedPseudoElements = atom.getAttachedPseudoElements();
+
+                    // Draw to the right if the whole molecule is concatenated into one string
+                    if (atom.hasAttachedPseudoElements && graph.vertices.length === Object.keys(attachedPseudoElements).length + 1) {
+                        dir = 'right';
+                    }
+
+                    svgWrapper.drawText(vertex.position.x, vertex.position.y,
+                        element, hydrogens, dir, isTerminal, charge, isotope, graph.vertices.length, attachedPseudoElements);
+                }
+                else if (opts.atomVisualization === 'balls') {
+                    svgWrapper.drawBall(vertex.position.x, vertex.position.y, element);
+                }
+            }
+            else if (vertex.getNeighbourCount() === 2 && vertex.forcePositioned == true) {
+                // If there is a carbon which bonds are in a straight line, draw a dot
+                let a = graph.vertices[vertex.neighbours[0]].position;
+                let b = graph.vertices[vertex.neighbours[1]].position;
+                let angle = Vector2.threePointangle(vertex.position, a, b);
+
+                if (Math.abs(Math.PI - angle) < 0.1) {
+                    svgWrapper.drawPoint(vertex.position.x, vertex.position.y, element);
+                }
+            }
+
+            if (debug) {
+                const value = 'v' + vertex.id + ' ' + ArrayHelper.print(atom.ringbonds);
+                svgWrapper.drawDebugText(vertex.position.x, vertex.position.y, value);
+            }
+        }
+
+        // Draw the ring centers for debug purposes
+        if (opts.debug) {
+            for (let i = 0; i < rings.length; i++) {
+                let center = rings[i].center;
+                svgWrapper.drawDebugPoint(center.x, center.y, 'r' + rings[i].id, '#00f');
+            }
+        }
+    }
+
+    /**
+     * Draw the weights on a background image.
+     * @param {Number[]} weights The weights assigned to each atom.
+     */
+    drawWeights(weights, weightsNormalized) {
+        if (!weights) {
+            return;
+        }
+
+        let vertex_ids = this.preprocessor.graph.atomIdxToVertexId;
+        if (weights.length < vertex_ids.length) {
+            vertex_ids = vertex_ids.slice(0, weights.length);
+        }
+        else if (weights.length > vertex_ids.length) {
+            console.warn(`More weights (${weights.length}) than heavy atoms (${vertex_ids.length}); truncating.`);
+            weights = weights.slice(0, vertex_ids.length);
+        }
+
+        let min = 0;
+        let max = 0;
+        for (let i = 0; i < weights.length; ++i) {
+            const weight = weights[i];
+            if (!weight) continue;
+
+            if (weight < min) min = weight;
+            if (weight > max) max = weight;
+        }
+
+        if (min === 0 && max === 0) {
+            return;
+        }
+
+        if (this.opts.experimentalWeights) {
+            const points = vertex_ids.map((vid) => {
+                return this.preprocessor.graph.vertices[vid].position;
+            });
+
+            let scale = this.opts.weights.opacity;
+            if (!weightsNormalized) {
+                scale /= Math.max(-min, max);
+            }
+
+            return this.svgWrapper.drawWeights(weights, points, scale);
+        }
+
+        const minX = this.svgWrapper.minX;
+        const minY = this.svgWrapper.minY;
+        const points = vertex_ids.map((vid) => {
+            const vertex = this.preprocessor.graph.vertices[vid];
+            return new Vector2(vertex.position.x - minX, vertex.position.y - minY);
+        });
+
+        let gd = new GaussDrawer(
+            points, weights, this.svgWrapper.drawingWidth, this.svgWrapper.drawingHeight,
+            this.opts.weights.sigma, this.opts.weights.interval, this.opts.weights.colormap,
+            this.opts.weights.opacity, weightsNormalized
+        );
+
+        gd.draw();
+        const background = gd.getSVG();
+        background.firstElementChild.setAttributeNS(null, 'transform', `translate(${minX},${minY})`);
+        this.svgWrapper.addLayer(background);
+    }
+
+    /**
+     * Returns the total overlap score of the current molecule.
+     *
+     * @returns {Number} The overlap score.
+     */
+    getTotalOverlapScore() {
+        return this.preprocessor.getTotalOverlapScore();
+    }
+
+    /**
+     * Returns the molecular formula of the loaded molecule as a string.
+     *
+     * @returns {String} The molecular formula.
+     */
+    getMolecularFormula(graph = null) {
+        return this.preprocessor.getMolecularFormula(graph);
+    }
+
+    /**
+     * @param {Array} normals list of normals to multiply
+     * @param {Number} spacing value to multiply normals by
+     */
+    multiplyNormals(normals, spacing) {
+        normals[0].multiplyScalar(spacing);
+        normals[1].multiplyScalar(spacing);
+    }
+}
