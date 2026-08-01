@@ -23,7 +23,8 @@ listed in `package.json`).
 ### Building the Package
 
 SmilesDrawer "compiles" to a JavaScript bundle, which can be found in the `dist`
-folder.
+folder.  That folder is generated,  not checked into Git:  `npm install` builds
+it for you via the `prepare` script, and `npm run release` rebuilds it.
 
 When doing development work on SmilesDrawer,  you'll use a special bundle called
 `dist/smiles-drawer.dev.js`. This file isn't checked into Git, but it is used by
@@ -55,7 +56,7 @@ of whether or not it has been passing historically.
 There are also automated tests.  To run these, run:
 
 ```sh
-npm run test
+npm run test:ci
 ```
 
 If you contribute a new feature, please add tests for it as well!
@@ -92,13 +93,15 @@ Regular contributors should not do this!  This is for the maintainers to do when
 they decide it's time to release a new version of SmilesDrawer.
 
 1. Make a new branch to contain your version update.
-2. Update the version number in `package.json` and `app.js`.  It may also appear
-   in  `README.md` or other documentation.  Use `grep` with the `-r` (recursive)
-   flag to make sure you've found them all.
-3. Rebuild the official bundles by running `npm run release`.
+2. Update the version number in `package.json` and `app.ts`.  It also appears in
+   `README.md`.   Use `grep` with the `-r` (recursive) flag to make sure  you've
+   found them all;  `test/regression/packaging.test.js` fails if they disagree.
+3. Run `npm run release` and `npm run test:ci` to confirm the bundles still build
+   and pass.  The bundles themselves are not committed.
 4. Commit your changes and push them to GitHub.  Make a pull request.
 5. Once the pull request is merged, create a "release" on GitHub. Tag the latest
    commit  (the one that was created by the merge)  as `vX.Y.Z`, where `X`, `Y`,
    and `Z` are the major, minor, and patch version numbers (e.g. `v1.2.3`).
-6. Publish the package to NPM.  This is currently blocked, but should be handled
-   automatically once GitHub Actions is set up correctly.
+
+This fork is not published to NPM.  Consumers install it straight from Git — the
+`prepare` script builds `dist/` at install time.

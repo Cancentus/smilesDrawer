@@ -1,5 +1,4 @@
 import * as esbuild from 'esbuild';
-import * as fs      from 'node:fs';
 import * as params  from './params.mjs';
 
 // Regular JavaScript
@@ -29,6 +28,3 @@ await esbuild.build(Object.assign({}, params.BASE, {
     format:  'esm',
     minify:  true,
 }));
-
-// Make sure the website is using the latest release!
-fs.copyFileSync('dist/smiles-drawer.min.js', 'docs/js/smiles-drawer.min.js');

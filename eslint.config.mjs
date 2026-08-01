@@ -9,12 +9,9 @@ export default defineConfig([
     stylistic.configs.recommended,
     {
         ignores: [
-            'dist/',               // Automatically generated
-            'doc/',                // Automatically generated
-            'docs/',               // Automatically generated
-            'src/Parser.js',       // Automatically generated
-            'test/',               // Too many tabs
-            'example/drugbank.js', // Too many tabs
+            'dist/',         // Automatically generated
+            'src/Parser.js', // Automatically generated
+            'test/',         // Too many tabs
         ],
     },
     {

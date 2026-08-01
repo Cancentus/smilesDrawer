@@ -21,10 +21,9 @@ export default class SSSR {
      * minimum cycle basis (MCB / SSSR) of the graph.
      *
      * @param {Graph} graph A Graph object.
-     * @param {Boolean} [_experimental=false] Whether or not to use experimental SSSR (UNUSED).
      * @returns {Array[]} An array containing arrays, each representing a ring.
      */
-    static getRings(graph, _experimental = false) {
+    static getRings(graph) {
         return SSSR._findRings(graph, false);
     }
 
@@ -36,10 +35,9 @@ export default class SSSR {
      * depiction; use getRings() for chemistry (aromaticity, ring membership).
      *
      * @param {Graph} graph A Graph object.
-     * @param {Boolean} [_experimental=false] Whether or not to use experimental SSSR (UNUSED).
      * @returns {Array[]} An array containing arrays, each representing a ring.
      */
-    static getRingsForLayout(graph, _experimental = false) {
+    static getRingsForLayout(graph) {
         return SSSR._findRings(graph, true);
     }
 

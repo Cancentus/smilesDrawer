@@ -63,7 +63,6 @@ export default class DrawerBase {
             fontSizeLarge:               11,
             fontSizeSmall:               3,
             padding:                     10.0,
-            experimentalSSSR:            false,
             experimentalWeights:         false,
             kkThreshold:                 0.1,
             kkInnerThreshold:            0.1,
@@ -894,7 +893,7 @@ export default class DrawerBase {
         }
 
         // Get the rings in the graph (the SSSR)
-        let rings = SSSR.getRings(this.graph, this.opts.experimentalSSSR);
+        let rings = SSSR.getRings(this.graph);
 
         if (rings === null || rings.length === 0) {
             return;

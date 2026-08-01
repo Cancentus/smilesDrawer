@@ -1,29 +1,15 @@
 # SmilesDrawer 2.0
 
+> **Fork notice.** This is a fork of [reymond-group/smilesDrawer](https://github.com/reymond-group/smilesDrawer),
+> created by [Daniel Probst](https://github.com/daenuprobst) and the [Reymond Group](https://github.com/reymond-group)
+> at the University of Berne. All credit for the original library goes to the upstream authors.
+>
+> The upstream website, playground and hosted documentation are not part of this fork; this README and
+> [CONTRIBUTING.md](CONTRIBUTING.md) are the documentation.
+
 No server, no images, no templates, just a SMILES 😊
 
 Current Version: **2.4.1**
-
-<table style="width: 100%; table-layout: fixed">
-    <tbody>
-        <tr>
-            <td><a href="https://reymond-group.github.io/smilesDrawer/">Home - live preview & presets</a></td>
-            <td><a href="https://reymond-group.github.io/smilesDrawer/playground">Playground - single molecule</a></td>
-        </tr>
-        <tr>
-            <td><a href="https://reymond-group.github.io/smilesDrawer/"><img src="https://github.com/reymond-group/smilesDrawer/raw/master/readme/website.png"></a></td>
-            <td><a href="https://reymond-group.github.io/smilesDrawer/playground"><img src="https://github.com/reymond-group/smilesDrawer/raw/master/readme/playground.png"></a></td>
-        </tr>
-        <tr>
-            <td><a href="https://reymond-group.github.io/smilesDrawer/playground/?mode=batch">Playground - batch rendering</a></td>
-            <td><a href="https://reymond-group.github.io/smilesDrawer/getting-started/">Documentation</a></td>
-        </tr>
-        <tr>
-            <td><a href="https://reymond-group.github.io/smilesDrawer/playground/?mode=batch"><img src="https://github.com/reymond-group/smilesDrawer/raw/master/readme/batch.png"></a></td>
-            <td><a href="https://reymond-group.github.io/smilesDrawer/getting-started/"><img src="https://github.com/reymond-group/smilesDrawer/raw/master/readme/docs.png"></a></td>
-        </tr>
-    </tbody>
-</table>
 
 ### Examples in Specific Frameworks
 
@@ -80,39 +66,17 @@ As of now, there is full backwards compatibility.
 
 ### Examples
 
-An example using the light theme can be found [here](http://doc.gdb.tools/smilesDrawer/sd/example/index_light.html), while one using the dark theme can be found [here](http://doc.gdb.tools/smilesDrawer/sd/example/index.html) . The colors of SmilesDrawer are completely configurable.
-
-Examples showing molecules from different databases:
-
-- [Drugbank](http://doc.gdb.tools/smilesDrawer/sd/test/browser.html?set=drugbank)
-- [GDB-17](http://doc.gdb.tools/smilesDrawer/sd/test/browser.html?set=gdb17)
-- [FDB-17](http://doc.gdb.tools/smilesDrawer/sd/test/browser.html?set=fdb)
-- [SureChEMBL](http://doc.gdb.tools/smilesDrawer/sd/test/browser.html?set=schembl)
-- [ChEMBL](http://doc.gdb.tools/smilesDrawer/sd/test/browser.html?set=chembl)
-
 A very simple JSFiddle example can be found [here](https://jsfiddle.net/zjdtkL57/1/). This example shows the `SmilesDrawer.apply()` functionality which draws the structure for every `canvas` element with a `data-smiles` attribute. E.g. `<canvas data-smiles="C1CCCCC1"></canvas>`
 
-### Experimental Features
+### Installation
 
-If you experience problems with the drawing of complex ring systems (including very long bonds), enable the `experimentalSSSR` option.
+This fork is not published to NPM. Install it straight from Git — the `prepare` script builds the bundles at install time:
 
-### "Installation"
-
-You can find the latest release in the `dist` folder.
-
-<!--SmilesDrawer is available from the unpkg content delivery network:
-
-```
-https://unpkg.com/smiles-drawer@2/dist/smiles-drawer.min.js
+```sh
+npm install github:Cancentus/smilesDrawer
 ```
 
-You can easily get smiles-drawer using yarn:
-
-```
-yarn add smiles-drawer
-```
-
-or you can just download the files from here.-->
+The `dist` folder is generated, not checked in. To build it yourself, clone the repo and run `npm install` (or `npm run release` to rebuild).
 
 ### Building Smiles Drawer
 
@@ -191,7 +155,6 @@ The following options are available:
 | Large Font Size (in pt for elements)                            | fontSizeLarge               | number                              | 11            |
 | Small Font Size (in pt for numbers)                             | fontSizeSmall               | number                              | 3             |
 | Padding                                                         | padding                     | number                              | 10.0          |
-| Use experimental SSSR                                           | experimentalSSSR            | boolean                             | false         |
 | Show explicit carbons                                           | showCarbons                 | string ['none', 'default', 'terminal', 'acyclic', 'all'] | 'default'     |
 | Show terminal carbons (deprecated; use `showCarbons`)           | terminalCarbons             | boolean                             | false         |
 | Show explicit hydrogens                                         | explicitHydrogens           | boolean                             | true          |
@@ -225,7 +188,6 @@ The default options are defined as follows:
     fontSizeLarge: 11,
     fontSizeSmall: 3,
     padding: 10.0,
-    experimentalSSSR: false,
     themes: {
         dark: {
             C: '#ffffff',
