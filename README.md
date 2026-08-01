@@ -70,13 +70,14 @@ A very simple JSFiddle example can be found [here](https://jsfiddle.net/zjdtkL57
 
 ### Installation
 
-This fork is not published to NPM. Install it straight from Git — the `prepare` script builds the bundles at install time:
+This fork is not published to NPM. Install it straight from Git:
 
 ```sh
 npm install github:Cancentus/smilesDrawer
+bun  add     github:Cancentus/smilesDrawer
 ```
 
-The `dist` folder is generated, not checked in. To build it yourself, clone the repo and run `npm install` (or `npm run release` to rebuild).
+The minified bundles and type declarations are committed, so this works with no build step and no `trustedDependencies` entry. Everything else in `dist` is generated — clone the repo and run `npm install` (or `npm run release`) to build the full set.
 
 ### Building Smiles Drawer
 

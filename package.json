@@ -35,7 +35,7 @@
     "build":     "node ./scripts/build.mjs",
     "lint":      "npm exec -- eslint",
     "minify":    "node ./scripts/minify.mjs",
-    "prepare":   "npm run release",
+    "prepare":   "node ./scripts/prepare.mjs",
     "release":   "npm run typedefs && node ./scripts/release.mjs",
     "typecheck": "npm exec -- tsc --noEmit",
     "typedefs":  "npm exec -- tsc --emitDeclarationOnly",
