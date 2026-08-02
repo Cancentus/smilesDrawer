@@ -110,12 +110,10 @@ export default [
     {
         name:   'dha',
         group:  'ez',
+        // Six contiguous cis double bonds turn the chain the same way at every
+        // step, closing a hexagon after 18 atoms. Guards DrawerBase's
+        // relaxCoiledChains(), which opens the coil back up.
         smiles: 'CC/C=C\\C/C=C\\C/C=C\\C/C=C\\C/C=C\\C/C=C\\CCC(=O)O',
-        // Six contiguous cis double bonds curl the chain into a near-closed
-        // loop and the two ends collide — two atoms land 0.0009 units apart
-        // (bondLength is 30). Visible in the gallery at the top-left of the
-        // depiction. Layout bug in DrawerBase, not in this SMILES.
-        knownIssue: 'atomSpacing',
     },
 
     // Charges, zwitterions and multi-component SMILES.

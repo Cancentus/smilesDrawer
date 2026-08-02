@@ -24,11 +24,11 @@ exports[`aromatic: heme-b > matches the recorded layout metrics 1`] = `
 
 exports[`cage: cubane > matches the recorded layout metrics 1`] = `
 {
-  "bondLengthCV": 0.068,
+  "bondLengthCV": 0.069,
   "edges": 12,
-  "minAtomDist": 12.57,
-  "overlap": 0.66,
-  "rings": 5,
+  "minAtomDist": 12.58,
+  "overlap": 0.59,
+  "rings": 6,
   "vertices": 8,
 }
 `;
@@ -39,7 +39,7 @@ exports[`cage: dodecahedrane > matches the recorded layout metrics 1`] = `
   "edges": 30,
   "minAtomDist": 20.6,
   "overlap": 3.22,
-  "rings": 11,
+  "rings": 12,
   "vertices": 20,
 }
 `;
@@ -71,7 +71,7 @@ exports[`charged: sulfated-disaccharide > matches the recorded layout metrics 1`
   "bondLengthCV": 0,
   "edges": 43,
   "minAtomDist": 10.42,
-  "overlap": 4.98,
+  "overlap": 4.65,
   "rings": 2,
   "vertices": 42,
 }
@@ -92,8 +92,8 @@ exports[`ez: dha > matches the recorded layout metrics 1`] = `
 {
   "bondLengthCV": 0,
   "edges": 23,
-  "minAtomDist": 0,
-  "overlap": 2.89,
+  "minAtomDist": 25.65,
+  "overlap": 0.15,
   "rings": 0,
   "vertices": 24,
 }
@@ -104,7 +104,7 @@ exports[`fused: cholesterol > matches the recorded layout metrics 1`] = `
   "bondLengthCV": 0,
   "edges": 37,
   "minAtomDist": 10.42,
-  "overlap": 2.37,
+  "overlap": 2.45,
   "rings": 4,
   "vertices": 34,
 }
@@ -123,11 +123,11 @@ exports[`fused: colchicine > matches the recorded layout metrics 1`] = `
 
 exports[`fused: quinine > matches the recorded layout metrics 1`] = `
 {
-  "bondLengthCV": 0.095,
+  "bondLengthCV": 0.13,
   "edges": 31,
-  "minAtomDist": 13.35,
-  "overlap": 5.06,
-  "rings": 4,
+  "minAtomDist": 15.56,
+  "overlap": 2.03,
+  "rings": 5,
   "vertices": 28,
 }
 `;
@@ -137,7 +137,7 @@ exports[`fused: reserpine > matches the recorded layout metrics 1`] = `
   "bondLengthCV": 0,
   "edges": 55,
   "minAtomDist": 10.42,
-  "overlap": 1.33,
+  "overlap": 1.32,
   "rings": 6,
   "vertices": 50,
 }
@@ -214,7 +214,7 @@ exports[`macrocycle: amphotericin-b > matches the recorded layout metrics 1`] = 
   "bondLengthCV": 0.067,
   "edges": 85,
   "minAtomDist": 10.42,
-  "overlap": 5.69,
+  "overlap": 5.4,
   "rings": 3,
   "vertices": 83,
 }
@@ -225,7 +225,7 @@ exports[`macrocycle: cyclosporin-a > matches the recorded layout metrics 1`] = `
   "bondLengthCV": 0,
   "edges": 97,
   "minAtomDist": 14.93,
-  "overlap": 7.43,
+  "overlap": 5.9,
   "rings": 1,
   "vertices": 97,
 }
@@ -236,7 +236,7 @@ exports[`macrocycle: erythromycin > matches the recorded layout metrics 1`] = `
   "bondLengthCV": 0,
   "edges": 68,
   "minAtomDist": 5.97,
-  "overlap": 7.95,
+  "overlap": 9,
   "rings": 3,
   "vertices": 66,
 }
@@ -247,7 +247,7 @@ exports[`macrocycle: rapamycin > matches the recorded layout metrics 1`] = `
   "bondLengthCV": 0.287,
   "edges": 82,
   "minAtomDist": 13.76,
-  "overlap": 6.88,
+  "overlap": 7.1,
   "rings": 4,
   "vertices": 79,
 }
@@ -258,7 +258,7 @@ exports[`macrocycle: taxol > matches the recorded layout metrics 1`] = `
   "bondLengthCV": 0.069,
   "edges": 76,
   "minAtomDist": 10.42,
-  "overlap": 5.92,
+  "overlap": 6.33,
   "rings": 7,
   "vertices": 70,
 }

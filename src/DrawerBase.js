@@ -57,6 +57,7 @@ export default class DrawerBase {
             showCarbons:                 'default',
             explicitHydrogens:           true,
             overlapSensitivity:          0.42,
+            clashRelaxationDistance:     0.5,
             overlapResolutionIterations: 1,
             compactDrawing:              true,
             fontFamily:                  'Arial, Helvetica, sans-serif',
@@ -496,6 +497,11 @@ export default class DrawerBase {
     /**
      * Returns the ring count of the current molecule.
      *
+     * This counts the rings used for *depiction* - the relevant cycles perceived
+     * in initRings(), which include every face of a symmetric cage. That is not
+     * the SSSR count chemistry usually means: cubane reports 6 here, not 5, and
+     * dodecahedrane 12, not 11. Call SSSR.getRings() for the chemical count.
+     *
      * @returns {Number} The ring count.
      */
     getRingCount() {
@@ -790,6 +796,12 @@ export default class DrawerBase {
         this.resolveRigidRingOverlaps();
         overlapScore = this.getOverlapScore();
         this.resolveSecondaryOverlaps(overlapScore.scores);
+        this.relaxCoiledChains();
+
+        // Refresh the cached score now that every repair pass has run, so
+        // getTotalOverlapScore() describes the drawing that comes out rather than
+        // an intermediate state part-way through this method.
+        this.totalOverlapScore = this.getOverlapScore().total;
 
         if (this.opts.isomeric) {
             this.annotateStereochemistry();
@@ -892,8 +904,13 @@ export default class DrawerBase {
             }
         }
 
-        // Get the rings in the graph (the SSSR)
-        let rings = SSSR.getRings(this.graph);
+        // Get the rings in the graph. Relevant cycles, not the SSSR: the union of
+        // all minimum cycle bases includes the faces an arbitrary MCB drops on
+        // symmetric cages (bicyclo[2.2.2] 2 -> 3, cubane 5 -> 6, dodecahedrane
+        // 11 -> 12). Those faces are what lets createBridgedRing() build a correct
+        // perimeter/insider split, which is what seeds the Kamada-Kawai layout.
+        // Use SSSR.getRings() instead if you need ring counts for chemistry.
+        let rings = SSSR.getRingsForLayout(this.graph);
 
         if (rings === null || rings.length === 0) {
             return;
@@ -1080,8 +1097,11 @@ export default class DrawerBase {
      *  A cage should have several rings fused on three or more sides.
      * Every atom in the cage skeleton should have three neighbours inside
      * the same fused component.
-     * Most ring edges should be shared by two rings. A small boundary is
-     *allowed because the SSSR can miss one face of a cage (see cubane example)
+     * Most ring edges should be shared by two rings. A small boundary is allowed;
+     * this slack dates from when initRings() perceived the SSSR, which can miss one
+     * face of a cage (the cubane example). It now perceives relevant cycles, which
+     * supply that face, so the tolerance below is more generous than it needs to be.
+     * Tightening it is a separate change - it would narrow what counts as a cage.
      * This rejects polycyclic aromatic hydrocarbons (PAHs) which are an exception to the rule
      *  check https://en.wikipedia.org/wiki/Polycyclic_aromatic_hydrocarbon
      * PAHs have outer atoms with only two neighbours inside the fused system.
@@ -1174,6 +1194,7 @@ export default class DrawerBase {
             stats.atomCount > 0
             && stats.edgeCount > 0
             && stats.nonCageAtomCount === 0
+            // Slack left over from SSSR-based perception; see markCageRingSystems().
             && stats.boundaryEdgeRatio <= 0.5
         );
     }
@@ -2360,6 +2381,196 @@ export default class DrawerBase {
     }
 
     /**
+     * Inspects a double bond carrying a directional (/ or \) neighbour on each
+     * side, reporting which side of the bond axis SMILES asks those neighbours
+     * to be on and which side they are currently drawn on.
+     *
+     * @param {Edge} edge An edge.
+     * @returns {?Object} null unless the edge is a non-ring stereo double bond,
+     *                    otherwise `{expectedSameSide, actualSameSide}`.
+     */
+    getStereoDoubleBond(edge) {
+        const graph = this.graph;
+
+        if (edge.bondType !== '=') {
+            return null;
+        }
+
+        const vA = edge.sourceId;
+        const vB = edge.targetId;
+
+        if (this.areVerticesInSameRing(graph.vertices[vA], graph.vertices[vB])) {
+            // These had better be in the right place by default,
+            // because there's no clean fix if they're not...
+            return null;
+        }
+
+        // Find the stereo-marked (/ or \) bond on one side of the double bond.
+        // '/' means source is below, target is above, so which side a neighbour
+        // sits on depends on whether it is that edge's source or its target.
+        const stereoNeighbour = (vertexId, otherId) => {
+            for (const nid of graph.vertices[vertexId].getNeighbours()) {
+                if (nid === otherId) continue;
+
+                const e = graph.getEdge(vertexId, nid);
+                if (e && (e.bondType === '/' || e.bondType === '\\')) {
+                    return {
+                        nid,
+                        above: (e.sourceId === vertexId) ? (e.bondType === '/') : (e.bondType === '\\'),
+                    };
+                }
+            }
+
+            return null;
+        };
+
+        const stereoA = stereoNeighbour(vA, vB);
+        const stereoB = stereoNeighbour(vB, vA);
+
+        if (!stereoA || !stereoB) {
+            return null;
+        }
+
+        const posA  = graph.vertices[vA].position;
+        const posB  = graph.vertices[vB].position;
+        const posS1 = graph.vertices[stereoA.nid].position;
+        const posS2 = graph.vertices[stereoB.nid].position;
+
+        const ax = posB.x - posA.x;
+        const ay = posB.y - posA.y;
+
+        const cross1 = ax * (posS1.y - posA.y) - ay * (posS1.x - posA.x);
+        const cross2 = ax * (posS2.y - posB.y) - ay * (posS2.x - posB.x);
+
+        return {
+            // Same above -> same side -> Z; different -> opposite -> E.
+            expectedSameSide: stereoA.above === stereoB.above,
+            actualSameSide:   (cross1 > 0) === (cross2 > 0),
+        };
+    }
+
+    /**
+     * A signature of which side every stereo double bond is currently drawn on,
+     * for checking that a geometric change left the depicted E/Z alone.
+     *
+     * @returns {String} A signature comparable with ===.
+     */
+    getDoubleBondSides() {
+        let sides = '';
+
+        for (let i = 0; i < this.graph.edges.length; i++) {
+            const stereo = this.getStereoDoubleBond(this.graph.edges[i]);
+
+            if (stereo !== null) {
+                sides += stereo.actualSameSide ? '1' : '0';
+            }
+        }
+
+        return sides;
+    }
+
+    /**
+     * Finds the closest pair of atoms that are drawn but not bonded to each other.
+     *
+     * @returns {Object} `{distance, a, b}`; a and b are -1 if there is no such pair.
+     */
+    getWorstClash() {
+        const vertices = this.graph.vertices;
+        let worst = {distance: Infinity, a: -1, b: -1};
+
+        for (let i = 0; i < vertices.length; i++) {
+            if (!vertices[i].value.isDrawn) continue;
+
+            for (let j = i + 1; j < vertices.length; j++) {
+                if (!vertices[j].value.isDrawn || vertices[i].neighbours.includes(j)) {
+                    continue;
+                }
+
+                const distance = vertices[i].position.distance(vertices[j].position);
+                if (distance < worst.distance) {
+                    worst = {distance, a: i, b: j};
+                }
+            }
+        }
+
+        return worst;
+    }
+
+    /**
+     * Opens up a chain that has curled round far enough to run into itself.
+     *
+     * A run of cis double bonds turns the chain the same way at every step, so a
+     * long enough one closes a polygon: all-cis C22 (DHA) accumulates 6 x 60 deg
+     * over 18 atoms and lands its two ends on the same point. The overlap
+     * resolution loop cannot help, because every bond involved is / or \ and
+     * `isEdgeRotatable()` rightly refuses those - it rotates by 120 deg, which
+     * would flip the depicted E/Z.
+     *
+     * A *small* rotation does not flip anything, it just opens the bond angle.
+     * So spread one along the path between the two colliding atoms: rotating the
+     * subtree at each of k bonds by d unwinds the coil by k*d. Grow d until the
+     * atoms separate, and keep the result only if the drawing did not get more
+     * crowded and every double bond is still drawn on the side it was.
+     */
+    relaxCoiledChains() {
+        // One degree per step, up to twenty. Twenty degrees spread over a chain
+        // is far more than any observed coil needs, and small enough per bond
+        // that the E/Z check below has never rejected it.
+        const stepAngle = MathHelper.toRad(1.0);
+        const maxSteps  = 20;
+
+        const limit = this.opts.clashRelaxationDistance * this.opts.bondLength;
+        const clash = this.getWorstClash();
+
+        if (clash.a === -1 || clash.distance > limit) {
+            return;
+        }
+
+        const path = this.graph.getPath(clash.a, clash.b);
+
+        // Only pivot about bonds outside any ring. Rotating a subtree about a ring
+        // bond pulls the ring out of shape, and neither test below reliably
+        // notices that - the overlap score barely moves when a ring merely
+        // deforms. Defensive: no molecule in test/complex currently reaches this
+        // pass with a ring on the path, so removing it changes nothing today.
+        const pivots = [];
+        for (let i = 0; i < path.length - 1; i++) {
+            const a = this.graph.vertices[path[i]];
+            const b = this.graph.vertices[path[i + 1]];
+
+            if (a.value.rings.length === 0 && b.value.rings.length === 0) {
+                pivots.push([path[i], path[i + 1]]);
+            }
+        }
+
+        if (pivots.length < 2) {
+            return;
+        }
+
+        const sides     = this.getDoubleBondSides();
+        const baseline  = this.getOverlapScore().total;
+        const positions = this.graph.vertices.map(vertex => vertex.position.clone());
+
+        for (const direction of [1, -1]) {
+            for (let step = 0; step < maxSteps; step++) {
+                for (const [from, to] of pivots) {
+                    this.rotateSubtree(to, from, direction * stepAngle, this.graph.vertices[from].position);
+                }
+
+                if (this.getWorstClash().distance > limit
+                    && this.getOverlapScore().total <= baseline
+                    && this.getDoubleBondSides() === sides) {
+                    return;
+                }
+            }
+
+            for (let i = 0; i < this.graph.vertices.length; i++) {
+                this.graph.vertices[i].position = positions[i].clone();
+            }
+        }
+    }
+
+    /**
      * Post-processing fix for E/Z double bond stereochemistry.
      * After position(), checks all stereo double bonds and corrects any
      * where the visual geometry doesn't match the SMILES encoding.
@@ -2373,65 +2584,16 @@ export default class DrawerBase {
 
         for (let i = 0; i < graph.edges.length; i++) {
             const edge = graph.edges[i];
-            if (edge.bondType !== '=') continue;
+            const stereo = this.getStereoDoubleBond(edge);
 
-            const vA = edge.sourceId;
-            const vB = edge.targetId;
-
-            if (this.areVerticesInSameRing(graph.vertices[vA], graph.vertices[vB])) {
-                // These had better be in the right place by default,
-                // because there's no clean fix if they're not...
+            if (stereo === null || stereo.expectedSameSide === stereo.actualSameSide) {
                 continue;
             }
 
-            // Find stereo-marked (/ or \) bonds on each side
-            let stereoA = null, stereoB = null;
-
-            for (const nid of graph.vertices[vA].getNeighbours()) {
-                if (nid === vB) continue;
-                const e = graph.getEdge(vA, nid);
-                if (e && (e.bondType === '/' || e.bondType === '\\')) {
-                    // '/' means source is below, target is above
-                    // So neighbor's side depends on whether it's source or target
-                    let neighborAbove = (e.sourceId === vA)
-                        ? (e.bondType === '/')    // B=A/N: N above
-                        : (e.bondType === '\\');  // N\A=B: N above
-                    stereoA = {nid, above: neighborAbove};
-                    break;
-                }
-            }
-
-            for (const nid of graph.vertices[vB].getNeighbours()) {
-                if (nid === vA) continue;
-                const e = graph.getEdge(vB, nid);
-                if (e && (e.bondType === '/' || e.bondType === '\\')) {
-                    let neighborAbove = (e.sourceId === vB)
-                        ? (e.bondType === '/')
-                        : (e.bondType === '\\');
-                    stereoB = {nid, above: neighborAbove};
-                    break;
-                }
-            }
-
-            if (!stereoA || !stereoB) continue;
-
-            // Expected: same above → same side → Z; different → opposite → E
-            const expectedSameSide = (stereoA.above === stereoB.above);
-
-            // Actual geometry via cross products
-            const posA = graph.vertices[vA].position;
-            const posB = graph.vertices[vB].position;
-            const posS1 = graph.vertices[stereoA.nid].position;
-            const posS2 = graph.vertices[stereoB.nid].position;
-
-            const ax = posB.x - posA.x;
-            const ay = posB.y - posA.y;
-
-            const cross1 = ax * (posS1.y - posA.y) - ay * (posS1.x - posA.x);
-            const cross2 = ax * (posS2.y - posB.y) - ay * (posS2.x - posB.x);
-            const actualSameSide = (cross1 > 0) === (cross2 > 0);
-
-            if (expectedSameSide === actualSameSide) continue;
+            const vA = edge.sourceId;
+            const vB = edge.targetId;
+            const ax = graph.vertices[vB].position.x - graph.vertices[vA].position.x;
+            const ay = graph.vertices[vB].position.y - graph.vertices[vA].position.y;
 
             // Geometry is wrong — reflect a subtree across the double bond axis.
             // Prefer to flip from the side with fewer stereo bonds to avoid

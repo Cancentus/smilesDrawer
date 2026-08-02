@@ -66,6 +66,7 @@ export default class DrawerBase {
         showCarbons: string;
         explicitHydrogens: boolean;
         overlapSensitivity: number;
+        clashRelaxationDistance: number;
         overlapResolutionIterations: number;
         compactDrawing: boolean;
         fontFamily: string;
@@ -336,6 +337,11 @@ export default class DrawerBase {
     /**
      * Returns the ring count of the current molecule.
      *
+     * This counts the rings used for *depiction* - the relevant cycles perceived
+     * in initRings(), which include every face of a symmetric cage. That is not
+     * the SSSR count chemistry usually means: cubane reports 6 here, not 5, and
+     * dodecahedrane 12, not 11. Call SSSR.getRings() for the chemical count.
+     *
      * @returns {Number} The ring count.
      */
     getRingCount(): number;
@@ -404,8 +410,11 @@ export default class DrawerBase {
      *  A cage should have several rings fused on three or more sides.
      * Every atom in the cage skeleton should have three neighbours inside
      * the same fused component.
-     * Most ring edges should be shared by two rings. A small boundary is
-     *allowed because the SSSR can miss one face of a cage (see cubane example)
+     * Most ring edges should be shared by two rings. A small boundary is allowed;
+     * this slack dates from when initRings() perceived the SSSR, which can miss one
+     * face of a cage (the cubane example). It now perceives relevant cycles, which
+     * supply that face, so the tolerance below is more generous than it needs to be.
+     * Tightening it is a separate change - it would narrow what counts as a cage.
      * This rejects polycyclic aromatic hydrocarbons (PAHs) which are an exception to the rule
      *  check https://en.wikipedia.org/wiki/Polycyclic_aromatic_hydrocarbon
      * PAHs have outer atoms with only two neighbours inside the fused system.
@@ -606,6 +615,46 @@ export default class DrawerBase {
      * @param {Boolean} [previousVertex=false] A boolean indicating whether or not this ring was force positioned already - this is needed after force layouting a ring, in order to draw rings connected to it.
      */
     createRing(ring: Ring, center?: (Vector2 | null), startVertex?: (Vertex | null), previousVertex?: (Vertex | null)): void;
+    /**
+     * Inspects a double bond carrying a directional (/ or \) neighbour on each
+     * side, reporting which side of the bond axis SMILES asks those neighbours
+     * to be on and which side they are currently drawn on.
+     *
+     * @param {Edge} edge An edge.
+     * @returns {?Object} null unless the edge is a non-ring stereo double bond,
+     *                    otherwise `{expectedSameSide, actualSameSide}`.
+     */
+    getStereoDoubleBond(edge: Edge): any | null;
+    /**
+     * A signature of which side every stereo double bond is currently drawn on,
+     * for checking that a geometric change left the depicted E/Z alone.
+     *
+     * @returns {String} A signature comparable with ===.
+     */
+    getDoubleBondSides(): string;
+    /**
+     * Finds the closest pair of atoms that are drawn but not bonded to each other.
+     *
+     * @returns {Object} `{distance, a, b}`; a and b are -1 if there is no such pair.
+     */
+    getWorstClash(): any;
+    /**
+     * Opens up a chain that has curled round far enough to run into itself.
+     *
+     * A run of cis double bonds turns the chain the same way at every step, so a
+     * long enough one closes a polygon: all-cis C22 (DHA) accumulates 6 x 60 deg
+     * over 18 atoms and lands its two ends on the same point. The overlap
+     * resolution loop cannot help, because every bond involved is / or \ and
+     * `isEdgeRotatable()` rightly refuses those - it rotates by 120 deg, which
+     * would flip the depicted E/Z.
+     *
+     * A *small* rotation does not flip anything, it just opens the bond angle.
+     * So spread one along the path between the two colliding atoms: rotating the
+     * subtree at each of k bonds by d unwinds the coil by k*d. Grow d until the
+     * atoms separate, and keep the result only if the drawing did not get more
+     * crowded and every double bond is still drawn on the side it was.
+     */
+    relaxCoiledChains(): void;
     /**
      * Post-processing fix for E/Z double bond stereochemistry.
      * After position(), checks all stereo double bonds and corrects any

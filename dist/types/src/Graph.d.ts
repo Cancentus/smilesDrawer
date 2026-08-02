@@ -237,6 +237,16 @@ export default class Graph {
      */
     traverseBF(startVertexId: number, callback: Function): void;
     /**
+     * Get the shortest path between two vertices, as a breadth-first walk over
+     * the full graph (ring-closure bonds included, unlike the spanning tree).
+     *
+     * @param {Number} sourceId A vertex id.
+     * @param {Number} targetId A vertex id.
+     * @returns {Number[]} The vertex ids from source to target inclusive, or an
+     *                     empty array if they are in different components.
+     */
+    getPath(sourceId: number, targetId: number): number[];
+    /**
      * Get the depth of a subtree in the direction opposite to the vertex specified as the parent vertex.
      *
      * @param {Number} vertexId A vertex id.
