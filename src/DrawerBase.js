@@ -2525,12 +2525,26 @@ export default class DrawerBase {
             if (s > this.opts.overlapSensitivity) {
                 score += s;
                 count++;
-            }
 
-            let position = this.graph.vertices[vertex.id].position.clone();
-            position.multiplyScalar(s);
-            center.add(position);
+                // Accumulate the centroid from the same scores that normalise it
+                // below; weighting by vertices that were not counted biases it.
+                let position = this.graph.vertices[vertex.id].position.clone();
+                position.multiplyScalar(s);
+                center.add(position);
+            }
         });
+
+        // Nothing in this subtree overlaps anything. This used to fall through to
+        // 0/0 and hand callers a NaN, and because both `NaN > x` and `NaN < x` are
+        // false, callers silently took the wrong branch rather than the "no
+        // overlap" one - resolvePrimaryOverlaps() in particular then kept a trial
+        // rotation it was supposed to revert.
+        if (count === 0) {
+            return {
+                value:  0,
+                center: this.graph.vertices[vertexId].position.clone(),
+            };
+        }
 
         center.divide(score);
 
@@ -2653,23 +2667,20 @@ export default class DrawerBase {
 
                 let angle = (2 * Math.PI - this.getRing(overlap.rings[0]).getAngle()) / 6.0;
 
+                // Try both orientations and keep the better one. Judge them by the
+                // same global score the main resolution loop in processGraph() uses:
+                // the per-subtree score is an *average* over just those vertices
+                // above overlapSensitivity, so it can prefer an arrangement that is
+                // worse overall simply because it spreads the overlap over more atoms.
                 this.rotateSubtree(a.id, overlap.common.id, angle, overlap.common.position);
                 this.rotateSubtree(b.id, overlap.common.id, -angle, overlap.common.position);
 
-                // Decide which way to rotate the vertices depending on the effect it has on the overlap score
-                let overlapScore = this.getOverlapScore();
-                let subTreeOverlapA = this.getSubtreeOverlapScore(a.id, overlap.common.id, overlapScore.vertexScores);
-                let subTreeOverlapB = this.getSubtreeOverlapScore(b.id, overlap.common.id, overlapScore.vertexScores);
-                let total = subTreeOverlapA.value + subTreeOverlapB.value;
+                let total = this.getOverlapScore().total;
 
                 this.rotateSubtree(a.id, overlap.common.id, -2.0 * angle, overlap.common.position);
                 this.rotateSubtree(b.id, overlap.common.id, 2.0 * angle, overlap.common.position);
 
-                overlapScore = this.getOverlapScore();
-                subTreeOverlapA = this.getSubtreeOverlapScore(a.id, overlap.common.id, overlapScore.vertexScores);
-                subTreeOverlapB = this.getSubtreeOverlapScore(b.id, overlap.common.id, overlapScore.vertexScores);
-
-                if (subTreeOverlapA.value + subTreeOverlapB.value > total) {
+                if (this.getOverlapScore().total > total) {
                     this.rotateSubtree(a.id, overlap.common.id, 2.0 * angle, overlap.common.position);
                     this.rotateSubtree(b.id, overlap.common.id, -2.0 * angle, overlap.common.position);
                 }

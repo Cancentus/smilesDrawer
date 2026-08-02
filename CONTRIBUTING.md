@@ -67,6 +67,51 @@ npm run test:ci
 If you contribute a new feature, please add tests for it as well!
 
 
+### Checking How Molecules Are Drawn
+
+Assertions can tell you the pipeline didn't crash.  They can't tell you that the
+depiction looks wrong.  For that, render the complex-molecule set to PNG:
+
+```sh
+npm run gallery
+```
+
+This draws every molecule in `test/complex/molecules.mjs` in a real browser (via
+Playwright) and writes to `test/complex/out/`, which is not checked into Git:
+
+| File            | What it's for                                       |
+| --------------- | --------------------------------------------------- |
+| `sheet-N.png`   | contact sheets, six molecules each — start here     |
+| `<name>.png`    | a single molecule, full size, for a closer look     |
+| `metrics.json`  | per-molecule numbers, worst overlap score first     |
+| `gallery.html`  | the same grid, openable in a browser                |
+
+Look for labels overlapping other labels or bonds,  bonds crossing through rings,
+distorted rings,  missing atom labels,  and fragments running off-canvas.  Layout
+fixes belong in `src/DrawerBase.js`.  The gallery rebuilds the bundle from `src/`
+itself, so your edits show up without running `npm run build` first.
+
+The first time you run this on a machine, download the browser:
+
+```sh
+npx playwright install chromium
+```
+
+The matching automated checks live in `test/complex/complex.test.js`,  which runs
+as part of `test:ci`.  It asserts things a picture can't be diffed for — no `NaN`
+coordinates, no two atoms drawn on top of each other, consistent bond lengths —
+and snapshots the layout metrics so an accidental regression shows up as a diff.
+After an intentional layout change, refresh those with:
+
+```sh
+npx vitest run test/complex -u
+```
+
+Known, unfixed layout defects are tagged `knownIssue` in `molecules.mjs` and run
+under `it.fails`, so the suite stays green while the bug exists and fails loudly
+once somebody fixes it.
+
+
 
 ## Contributing
 

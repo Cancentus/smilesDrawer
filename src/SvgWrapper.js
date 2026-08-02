@@ -751,18 +751,22 @@ export default class SvgWrapper {
         // Measure element name only, without charge or isotope ...
         let bbox = SvgWrapper.measureText(text[0][1], this.opts.fontSizeLarge, this.opts.fontFamily);
 
-        // For left-direction text with charges/isotopes, account for
-        // the extra width from decorations without inflating the bbox
-        if (direction === 'left' && text[0][0] !== text[0][1]) {
-            let fullBbox = SvgWrapper.measureText(text[0][0], this.opts.fontSizeLarge, this.opts.fontFamily);
-            bbox.width = fullBbox.width;
+        // The label is rendered as its parts concatenated, so its width is the
+        // sum of their widths. Approximating it as the first part's width times
+        // the number of parts underestimates labels whose later parts are the
+        // wide ones - "O⁻O₂S" was drawn past the left edge of the viewBox.
+        // Subscripts and superscripts are set in a smaller font than they are
+        // measured in here, so this errs towards a little extra padding.
+        let textWidth = 0;
+        for (let i = 0; i < text.length; i++) {
+            textWidth += SvgWrapper.measureText(text[i][0], this.opts.fontSizeLarge, this.opts.fontFamily).width;
         }
 
         // Get the approximate width and height of text and add update max/min
         // to allow for narrower paddings
         if (singleVertex) {
-            if (x + bbox.width * text.length > this.maxX) {
-                this.maxX = x + bbox.width * text.length;
+            if (x + textWidth > this.maxX) {
+                this.maxX = x + textWidth;
             }
             if (x - bbox.width / 2.0 < this.minX) {
                 this.minX = x - bbox.width / 2.0;
@@ -776,16 +780,16 @@ export default class SvgWrapper {
         }
         else {
             if (direction !== 'right') {
-                if (x + bbox.width * text.length > this.maxX) {
-                    this.maxX = x + bbox.width * text.length;
+                if (x + textWidth > this.maxX) {
+                    this.maxX = x + textWidth;
                 }
-                if (x - bbox.width * text.length < this.minX) {
-                    this.minX = x - bbox.width * text.length;
+                if (x - textWidth < this.minX) {
+                    this.minX = x - textWidth;
                 }
             }
             else if (direction !== 'left') {
-                if (x + bbox.width * text.length > this.maxX) {
-                    this.maxX = x + bbox.width * text.length;
+                if (x + textWidth > this.maxX) {
+                    this.maxX = x + textWidth;
                 }
                 if (x - bbox.width / 2.0 < this.minX) {
                     this.minX = x - bbox.width / 2.0;
