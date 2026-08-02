@@ -9,6 +9,9 @@ dist/*
 !dist/smiles-drawer.min.mjs
 !dist/types/
 
+# Rendered molecule gallery (regenerate with `npm run gallery`)
+test/complex/out/
+
 # Tooling caches
 coverage/
 .eslintcache

@@ -24,6 +24,7 @@
     "eslint":                   "^10.7.0",
     "globals":                  "^17.7.0",
     "jsdom":                    "^26.1.0",
+    "playwright":               "^1.62.1",
     "typescript":               "^5.8.2",
     "typescript-eslint":        "^8.61.1",
     "vitest":                   "^4.1.9"
@@ -33,6 +34,7 @@
   },
   "scripts": {
     "build":     "node ./scripts/build.mjs",
+    "gallery":   "node ./test/complex/gallery.mjs",
     "lint":      "npm exec -- eslint",
     "minify":    "node ./scripts/minify.mjs",
     "prepare":   "node ./scripts/prepare.mjs",
@@ -41,7 +43,8 @@
     "typedefs":  "npm exec -- tsc --emitDeclarationOnly",
     "watch":     "node ./scripts/watch.mjs",
 
-    "test:ci":       "npm exec -- vitest run test/unit test/regression test/formula-reference test/stereo-reference",
+    "test:ci":       "npm exec -- vitest run test/unit test/regression test/complex test/formula-reference test/stereo-reference",
+    "test:complex":  "npm exec -- vitest run test/complex",
     "test:formulae": "npm exec -- vitest run test/formula-reference",
     "test:stereo":   "npm exec -- vitest run test/stereo-reference",
     "test:unit":     "npm exec -- vitest run test/unit test/regression"
