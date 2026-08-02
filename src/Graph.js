@@ -574,6 +574,47 @@ export default class Graph {
     }
 
     /**
+     * Get the shortest path between two vertices, as a breadth-first walk over
+     * the full graph (ring-closure bonds included, unlike the spanning tree).
+     *
+     * @param {Number} sourceId A vertex id.
+     * @param {Number} targetId A vertex id.
+     * @returns {Number[]} The vertex ids from source to target inclusive, or an
+     *                     empty array if they are in different components.
+     */
+    getPath(sourceId, targetId) {
+        let previous = new Map([[sourceId, null]]);
+        let queue = [sourceId];
+
+        while (queue.length > 0) {
+            let vertexId = queue.shift();
+
+            if (vertexId === targetId) {
+                break;
+            }
+
+            for (let neighbourId of this.vertices[vertexId].neighbours) {
+                if (!previous.has(neighbourId)) {
+                    previous.set(neighbourId, vertexId);
+                    queue.push(neighbourId);
+                }
+            }
+        }
+
+        if (!previous.has(targetId)) {
+            return [];
+        }
+
+        let path = [];
+
+        for (let vertexId = targetId; vertexId !== null; vertexId = previous.get(vertexId)) {
+            path.push(vertexId);
+        }
+
+        return path.reverse();
+    }
+
+    /**
      * Get the depth of a subtree in the direction opposite to the vertex specified as the parent vertex.
      *
      * @param {Number} vertexId A vertex id.
