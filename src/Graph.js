@@ -851,7 +851,8 @@ export default class Graph {
         innerThreshold = 0.1,
         maxIteration = 2000,
         maxInnerIteration = 50,
-        maxEnergy = 1e9
+        maxEnergy = 1e9,
+        seedStrategy = null
     ) {
         let edgeStrength = bondLength;
 
@@ -899,7 +900,21 @@ export default class Graph {
         // 3. Anything else: the system is too small for MDS to help, or some atoms
         //    have already been placed by a previous layout stage. Fall back to a
         //    simple circle as the starting guess and KK takes it from there.
+        //
+        // Either of the first two can stall on a system the other handles, so the
+        // choice below is only a first guess - see the retry after the KK loop.
+        let defaultSeed = 'circle';
+
         if (insiders.length > 0 && insiders.length <= 2) {
+            defaultSeed = 'perimeter';
+        }
+        else if (!anyPositioned && length >= 6) {
+            defaultSeed = 'mds';
+        }
+
+        let usedSeed = seedStrategy || defaultSeed;
+
+        if (usedSeed === 'perimeter') {
             let perimeter = this.getBridgedRingPerimeter(vertexIds, ring, startVertexId);
             let perimeterSet = new Set(perimeter);
             let perimeterCount = perimeter.length;
@@ -1000,7 +1015,7 @@ export default class Graph {
                 a += angle;
             }
         }
-        else if (!anyPositioned && length >= 6) {
+        else if (usedSeed === 'mds') {
             let mds = Graph.mdsLayout(matDist, length, bondLength);
             for (let idx = 0; idx < length; idx++) {
                 arrPositionX[idx] = center.x + mds.xs[idx];
@@ -1224,6 +1239,23 @@ export default class Graph {
             }
         }
 
+        // KK only finds a local minimum, so the seed decides the outcome. When the
+        // seed picked above leaves it stuck at the iteration cap, the coordinates
+        // below are unrelaxed and draw as a tangle (a macrocycle fused to small
+        // rings does this from the perimeter seed). Retry once with the other seed
+        // and keep whichever ended lower. Positions are only written at the very
+        // end of this method, so the recursive call starts from untouched state;
+        // it passes an explicit seedStrategy, so it cannot recurse again.
+        if (maxEnergy > threshold && seedStrategy === null && !anyPositioned) {
+            let fallback = usedSeed === 'mds' ? 'perimeter' : 'mds';
+            let retryEnergy = this.kkLayout(vertexIds, center, startVertexId, ring, bondLength,
+                threshold, innerThreshold, maxIteration, maxInnerIteration, 1e9, fallback);
+
+            if (retryEnergy <= maxEnergy) {
+                return retryEnergy;
+            }
+        }
+
         i = length;
         while (i--) {
             let index = vertexIds[i];
@@ -1233,6 +1265,8 @@ export default class Graph {
             vertex.positioned = true;
             vertex.forcePositioned = true;
         }
+
+        return maxEnergy;
     }
 
     /**

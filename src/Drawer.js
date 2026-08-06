@@ -30,8 +30,10 @@ export default class Drawer {
      * @param {string|String|HTMLCanvasElement} target The id of the HTML canvas element the structure is drawn to - or the element itself.
      * @param {String} themeName='dark' The name of the theme to use. Built-in themes are 'light' and 'dark'.
      * @param {Boolean} infoOnly=false Only output info on the molecule without drawing anything to the canvas.
+     * @param {String[]} highlight_atoms An array of atom classes to highlight.
+     * @param {?Object} presetLayout A pre-computed layout ({atoms, bonds}, see DrawerBase.applyPresetLayout) to draw instead of running the automatic layout.
      */
-    draw(data, target, themeName = 'light', infoOnly = false, highlight_atoms = []) {
+    draw(data, target, themeName = 'light', infoOnly = false, highlight_atoms = [], presetLayout = null) {
         let element = null;
         let canvas  = null;
         if (target instanceof String) {
@@ -56,7 +58,7 @@ export default class Drawer {
         svg.setAttributeNS(null, 'viewBox', '0 0 ' + this.svgDrawer.opts.width + ' ' + this.svgDrawer.opts.height);
         svg.setAttributeNS(null, 'width', this.svgDrawer.opts.width + '');
         svg.setAttributeNS(null, 'height', this.svgDrawer.opts.height + '');
-        this.svgDrawer.draw(data, svg, themeName, null, infoOnly, highlight_atoms);
+        this.svgDrawer.draw(data, svg, themeName, null, infoOnly, highlight_atoms, false, presetLayout);
         this.svgDrawer.svgWrapper.toCanvas(canvas, this.svgDrawer.opts.width, this.svgDrawer.opts.height);
     }
 

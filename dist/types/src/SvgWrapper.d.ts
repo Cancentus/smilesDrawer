@@ -55,6 +55,8 @@ export default class SvgWrapper {
     vertices: any[];
     gradients: any[];
     highlights: any[];
+    hitTargets: any[];
+    annotations: any[];
     drawingWidth: number;
     drawingHeight: number;
     halfBondThickness: number;
@@ -134,6 +136,28 @@ export default class SvgWrapper {
      */
     drawWedge(line: Line, color?: string): void;
     drawAtomHighlight(x: any, y: any, color?: string): void;
+    /**
+     * Draw an invisible, hoverable hit-target for an atom, tagged with its data as
+     * `data-*` attributes so a consumer (e.g. AtomTooltip) can hit-test and read atom
+     * info purely from the DOM. Drawn for every vertex regardless of visualization mode,
+     * since a plain skeletal carbon has no other SVG element at its position.
+     *
+     * @param {Number} x The x position of the vertex.
+     * @param {Number} y The y position of the vertex.
+     * @param {Object} data A map of data-attribute name (camelCase, without "data-") to
+     *                      value. Null/undefined values are omitted.
+     */
+    drawAtomHitTarget(x: number, y: number, data: any): void;
+    /**
+     * Draw a colored text annotation near an atom position.
+     *
+     * @param {Number} x The x position of the vertex.
+     * @param {Number} y The y position of the vertex.
+     * @param {String} text The annotation text (e.g. a pKa value).
+     * @param {String} color CSS fill color.
+     * @param {Number} [stackIndex=0] Vertical stack index when multiple labels share one atom.
+     */
+    drawAtomAnnotation(x: number, y: number, text: string, color: string, stackIndex?: number): void;
     /**
      * Draw a dashed wedge on the canvas.
      *

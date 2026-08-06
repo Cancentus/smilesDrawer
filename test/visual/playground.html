@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SMILES Playground</title>
+    <script type="text/javascript" src="../../dist/smiles-drawer.dev.js"></script>
+    <style>
+      body {
+        font: 14px Arial, Helvetica, sans-serif;
+        margin: 0;
+        padding: 12px;
+      }
+
+      #topRow {
+        display: flex;
+        gap: 8px;
+      }
+
+      #smiles {
+        box-sizing: border-box;
+        flex: 1;
+        font-family: monospace;
+        font-size: 15px;
+        padding: 6px;
+      }
+
+      #layoutFileBtn,
+      #valuesFileBtn {
+        padding: 6px 10px;
+      }
+
+      #valuesJson {
+        box-sizing: border-box;
+        display: block;
+        font-family: monospace;
+        font-size: 12px;
+        margin-top: 8px;
+        min-height: 4.5em;
+        padding: 6px;
+        resize: vertical;
+        width: 100%;
+      }
+
+      #datasetSelect {
+        font-size: 12px;
+      }
+
+      #valuesLegend {
+        color: #666;
+        font-size: 12px;
+      }
+
+      #valuesLegend .base { color: #059669; }
+      #valuesLegend .acid { color: #d97706; }
+
+      #viewerControls {
+        align-items: center;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #ccc;
+        border-radius: 999px;
+        display: inline-flex;
+        font-size: 12px;
+        gap: 12px;
+        padding: 4px 10px;
+        position: absolute;
+        right: 8px;
+        top: 8px;
+        user-select: none;
+        white-space: nowrap;
+        z-index: 1;
+      }
+
+      #viewerControls label,
+      #valuesControls,
+      #valuesDetail,
+      #valuesLegend {
+        align-items: center;
+        display: inline-flex;
+        gap: 6px;
+      }
+
+      #valuesControls {
+        gap: 12px;
+      }
+
+      /* The explicit display rules above would otherwise defeat the hidden attribute. */
+      #valuesControls[hidden],
+      #valuesDetail[hidden] {
+        display: none;
+      }
+
+      #status {
+        color: #a00;
+        font-family: monospace;
+        min-height: 1.2em;
+        padding: 4px 0;
+        white-space: pre-wrap;
+      }
+
+      #main {
+        align-items: start;
+        display: flex;
+        gap: 12px;
+      }
+
+      #output {
+        background-color: #fff;
+        border: 1px solid #ccc;
+        flex: 1;
+        position: relative;
+      }
+
+      #canvas {
+        min-height: 300px;
+        overflow: auto;
+      }
+
+      #bgLevelHint {
+        color: #666;
+        font-size: 11px;
+        grid-column: 2;
+      }
+
+      #options {
+        display: grid;
+        gap: 2px 8px;
+        grid-template-columns: auto 8em;
+        max-height: 85vh;
+        overflow-y: auto;
+        width: 24em;
+      }
+
+      #options label {
+        text-align: right;
+      }
+
+      #options input[type="checkbox"] {
+        justify-self: start;
+      }
+
+      #options input,
+      #options select {
+        width: 100%;
+      }
+
+      #reset {
+        grid-column: 1 / -1;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="topRow">
+      <input id="smiles" value="CC(=O)Oc1ccccc1C(=O)O" placeholder="SMILES or reaction SMILES" />
+      <input type="file" id="layoutFile" accept="application/json,.json" hidden />
+      <button type="button" id="layoutFileBtn">Layout</button>
+      <input type="file" id="valuesFile" accept="application/json,.json" hidden />
+      <button type="button" id="valuesFileBtn">Import JSON</button>
+    </div>
+    <textarea id="valuesJson" placeholder='Paste atom values JSON — generic { datasets: ... } or pKa { pka_methods: ... }'></textarea>
+    <div id="status"></div>
+    <div id="main">
+      <div id="output">
+        <div id="canvas"></div>
+        <div id="viewerControls">
+          <label for="showAllH">
+            <input type="checkbox" id="showAllH" />
+            Show all H
+          </label>
+          <span id="valuesControls" hidden>
+            <label for="showValues">
+              <input type="checkbox" id="showValues" checked />
+              Show values
+            </label>
+            <span id="valuesDetail">
+              <select id="datasetSelect" aria-label="Data source"></select>
+              <span id="valuesLegend" title="Hover an atom to see all datasets. Colors come from the JSON; pKa uses base/acid.">
+                <span class="base">● Base</span>
+                <span class="acid">● Acid</span>
+              </span>
+            </span>
+          </span>
+        </div>
+      </div>
+      <form id="options"></form>
+    </div>
+
+    <script type="text/javascript">
+      // The two string options with a fixed set of values. Everything else is
+      // derived from the type of its default, so new options show up for free.
+      const ENUMS = {
+          showCarbons:       ['default', 'none', 'terminal', 'acyclic', 'all'],
+          atomVisualization: ['default', 'balls', 'allballs'],
+      };
+
+      const DEFAULTS = new SmilesDrawer.SvgDrawer({}).preprocessor.defaultOptions;
+
+      const smilesInput      = document.getElementById('smiles');
+      const layoutFileInput  = document.getElementById('layoutFile');
+      const layoutFileBtn    = document.getElementById('layoutFileBtn');
+      const valuesFileInput  = document.getElementById('valuesFile');
+      const valuesFileBtn    = document.getElementById('valuesFileBtn');
+      const valuesJsonInput  = document.getElementById('valuesJson');
+      const datasetSelect    = document.getElementById('datasetSelect');
+      const showAllHCheckbox = document.getElementById('showAllH');
+      const showValuesCheckbox = document.getElementById('showValues');
+      const valuesControls   = document.getElementById('valuesControls');
+      const valuesDetail     = document.getElementById('valuesDetail');
+      const status           = document.getElementById('status');
+      const output           = document.getElementById('output');
+      const canvas           = document.getElementById('canvas');
+      const form             = document.getElementById('options');
+
+      // Set when a layout JSON is loaded; drawn via drawFromLayout() instead
+      // of the normal SMILES-only draw(). Cleared as soon as the SMILES box
+      // is edited by hand, so typing a new SMILES falls back to the
+      // automatic layout without needing a separate "clear" control.
+      let currentLayout = null;
+
+      // Parsed atom-value bundle from values JSON textarea / file load.
+      let valueBundle = null;
+      let selectedDataset = null;
+
+      // Re-created against the freshly drawn <svg> on every render().
+      let atomTooltip = null;
+
+      function control(key, value) {
+          if (ENUMS[key]) {
+              const select = document.createElement('select');
+              for (const option of ENUMS[key]) {
+                  select.append(new Option(option, option, false, option === value));
+              }
+              return select;
+          }
+
+          const input = document.createElement('input');
+          if (typeof value === 'boolean') {
+              input.type    = 'checkbox';
+              input.checked = value;
+          }
+          else if (typeof value === 'number') {
+              input.type  = 'number';
+              input.step  = Number.isInteger(value) ? '1' : 'any';
+              input.value = value;
+          }
+          else {
+              input.type  = 'text';
+              input.value = value;
+          }
+          return input;
+      }
+
+      // darkMode/bgLevel are meta controls that pick a theme name (and, for
+      // bgLevel, build a one-off 'custom' theme) for draw() - not options.
+      const darkModeCheckbox = document.createElement('input');
+      darkModeCheckbox.type = 'checkbox';
+
+      // 255 (white) is the neutral/off position: darkMode alone drives
+      // rendering. Any other value engages a live custom greyscale theme
+      // and takes priority over darkMode, to test the full background range.
+      const bgLevelSlider = document.createElement('input');
+      bgLevelSlider.type  = 'range';
+      bgLevelSlider.min   = 0;
+      bgLevelSlider.max   = 255;
+      bgLevelSlider.value = 255;
+
+      const bgLevelHint = document.createElement('span');
+      bgLevelHint.id = 'bgLevelHint';
+
+      const fields = {darkMode: darkModeCheckbox, bgLevel: bgLevelSlider};
+      for (const [key, value] of Object.entries(DEFAULTS)) {
+          if (typeof value === 'object' || key === 'showCarbons' || key === 'explicitHydrogens') {
+              continue; // themes/weights are nested; H display is the top-bar toggle
+          }
+          fields[key] = control(key, value);
+      }
+
+      for (const [key, field] of Object.entries(fields)) {
+          const label = document.createElement('label');
+          label.textContent = key;
+          label.htmlFor     = 'opt-' + key;
+          field.id          = 'opt-' + key;
+          form.append(label, field);
+          if (key === 'bgLevel') {
+              form.append(bgLevelHint);
+          }
+      }
+
+      const reset = document.createElement('button');
+      reset.type        = 'button';
+      reset.id          = 'reset';
+      reset.textContent = 'Reset to defaults';
+      reset.addEventListener('click', () => {
+          for (const [key, field] of Object.entries(fields)) {
+              const value = key === 'darkMode' ? false : key === 'bgLevel' ? 255 : DEFAULTS[key];
+              if (field.type === 'checkbox') {
+                  field.checked = value;
+              }
+              else {
+                  field.value = value;
+              }
+          }
+          showAllHCheckbox.checked = false;
+          showValuesCheckbox.checked = true;
+          refreshValuesControls();
+          render();
+      });
+      form.append(reset);
+
+      function collect() {
+          const options = {};
+          for (const [key, field] of Object.entries(fields)) {
+              if (key === 'darkMode' || key === 'bgLevel') {
+                  continue;
+              }
+              if (field.type === 'checkbox') {
+                  options[key] = field.checked;
+              }
+              else if (field.type === 'number') {
+                  options[key] = parseFloat(field.value);
+              }
+              else {
+                  options[key] = field.value;
+              }
+          }
+          options.showCarbons = showAllHCheckbox.checked ? 'all' : 'default';
+          options.explicitHydrogens = true;
+          return options;
+      }
+
+      function greyHex(n) {
+          const h = n.toString(16).padStart(2, '0');
+          return `#${h}${h}${h}`;
+      }
+
+      function heavyVertices(graph) {
+          return graph.vertices.filter(v => v.value.element !== 'H');
+      }
+
+      function overlayTarget(graph) {
+          return {
+              vertices:    heavyVertices(graph),
+              allVertices: graph.vertices,
+              atomOrder:   valueBundle?.atomOrder ?? null,
+          };
+      }
+
+      // Owns everything about the in-rectangle values UI: the dataset options and
+      // the visibility of the group (no data loaded) and of the picker/legend
+      // (values toggled off).
+      function refreshValuesControls() {
+          const keys = valueBundle ? Object.keys(valueBundle.datasets) : [];
+          datasetSelect.replaceChildren();
+          for (const key of keys) {
+              const label = valueBundle.datasets[key].label || key;
+              datasetSelect.append(new Option(label, key, false, key === selectedDataset));
+          }
+          if (selectedDataset && !keys.includes(selectedDataset)) {
+              selectedDataset = keys[0] ?? null;
+              datasetSelect.value = selectedDataset ?? '';
+          }
+          valuesControls.hidden = keys.length === 0;
+          valuesDetail.hidden   = !showValuesCheckbox.checked;
+      }
+
+      function parseValuesJson(text) {
+          const trimmed = text.trim();
+          if (!trimmed) {
+              valueBundle = null;
+              selectedDataset = null;
+              refreshValuesControls();
+              return;
+          }
+          const parsed = JSON.parse(trimmed);
+          valueBundle = SmilesDrawer.AtomValueOverlay.parseAtomValueBundle(parsed);
+          const keys = Object.keys(valueBundle.datasets);
+          if (!selectedDataset || !keys.includes(selectedDataset)) {
+              selectedDataset = keys[0] ?? null;
+          }
+          refreshValuesControls();
+          if (parsed.smiles && typeof parsed.smiles === 'string') {
+              smilesInput.value = parsed.smiles;
+          }
+      }
+
+      function finishSvg(svg, smiDrawer) {
+          canvas.replaceChildren(svg);
+
+          const graph = smiDrawer.drawer.preprocessor.graph;
+          const target = overlayTarget(graph);
+
+          // Reserve space for every dataset in the bundle, not just the one currently
+          // selected, so toggling "Show values" or switching the data source never
+          // resizes the viewBox - only loading a new bundle does.
+          if (valueBundle) {
+              SmilesDrawer.AtomValueOverlay.fitViewBoxToBundle(svg, valueBundle, target, {
+                  atomFontSize: smiDrawer.drawer.opts.fontSizeLarge,
+              });
+          }
+
+          if (showValuesCheckbox.checked && valueBundle && selectedDataset && valueBundle.datasets[selectedDataset]) {
+              SmilesDrawer.AtomValueOverlay.apply(
+                  svg,
+                  valueBundle.datasets[selectedDataset],
+                  target,
+                  {
+                      separatorColor: fields.darkMode.checked ? '#a1a1aa' : '#71717a',
+                      atomFontSize:   smiDrawer.drawer.opts.fontSizeLarge,
+                  },
+              );
+          }
+
+          if (atomTooltip) {
+              atomTooltip.destroy();
+          }
+          atomTooltip = new SmilesDrawer.AtomTooltip(svg, {
+              atomValueBundle: valueBundle,
+          });
+          atomTooltip.attach();
+      }
+
+      function render() {
+          const grey = parseInt(fields.bgLevel.value, 10);
+          status.textContent = '';
+
+          // 255 (slider untouched): darkMode checkbox alone picks the theme.
+          // Anything else: sweep a live 'custom' theme across the full grey
+          // range, reusing the light/dark FOREGROUND/C/H that gives better
+          // contrast against it, so the checkbox is overridden while engaged.
+          let themeName, background, drawerOptions;
+          if (grey === 255) {
+              themeName     = fields.darkMode.checked ? 'dark' : 'light';
+              background    = DEFAULTS.themes[themeName].BACKGROUND;
+              drawerOptions = collect();
+              bgLevelHint.textContent = '';
+          }
+          else {
+              const base = grey < 128 ? DEFAULTS.themes.dark : DEFAULTS.themes.light;
+              background = greyHex(grey);
+              themeName  = 'custom';
+              drawerOptions = {...collect(), themes: {custom: {...base, BACKGROUND: background}}};
+              bgLevelHint.textContent = `${background} (overrides Dark mode)`;
+          }
+          output.style.backgroundColor = background;
+
+          const onErr = err => {
+              canvas.replaceChildren();
+              status.textContent = err.message || String(err);
+          };
+
+          // SmiDrawer bakes the options in at construction, so rebuild each time.
+          if (currentLayout) {
+              const smi = new SmilesDrawer.SmiDrawer(drawerOptions);
+              smi.drawFromLayout(currentLayout, 'svg', themeName, svg => finishSvg(svg, smi), onErr);
+              return;
+          }
+
+          const smiles = smilesInput.value.trim();
+          if (!smiles) {
+              canvas.replaceChildren();
+              return;
+          }
+
+          const smi = new SmilesDrawer.SmiDrawer(drawerOptions);
+          smi.draw(smiles, 'svg', themeName, svg => finishSvg(svg, smi), onErr);
+      }
+
+      async function loadLayoutFile(file) {
+          if (!file) {
+              return;
+          }
+
+          try {
+              currentLayout = JSON.parse(await file.text());
+              smilesInput.value = currentLayout.smiles || '';
+              render();
+          }
+          catch (err) {
+              currentLayout = null;
+              canvas.replaceChildren();
+              status.textContent = 'Failed to load layout JSON: ' + (err.message || String(err));
+          }
+      }
+
+      async function loadValuesFile(file) {
+          if (!file) {
+              return;
+          }
+
+          try {
+              valuesJsonInput.value = await file.text();
+              parseValuesJson(valuesJsonInput.value);
+              render();
+          }
+          catch (err) {
+              valueBundle = null;
+              selectedDataset = null;
+              refreshValuesControls();
+              status.textContent = 'Failed to load values JSON: ' + (err.message || String(err));
+          }
+      }
+
+      valuesFileBtn.addEventListener('click', () => {
+          valuesFileInput.click();
+      });
+
+      valuesFileInput.addEventListener('change', () => {
+          loadValuesFile(valuesFileInput.files[0]);
+          valuesFileInput.value = '';
+      });
+
+      valuesJsonInput.addEventListener('input', () => {
+          try {
+              parseValuesJson(valuesJsonInput.value);
+              status.textContent = '';
+              render();
+          }
+          catch (err) {
+              valueBundle = null;
+              selectedDataset = null;
+              refreshValuesControls();
+              // render() clears status on entry, so report the error after it.
+              render();
+              status.textContent = 'Values JSON: ' + (err.message || String(err));
+          }
+      });
+
+      datasetSelect.addEventListener('change', () => {
+          selectedDataset = datasetSelect.value || null;
+          render();
+      });
+
+      layoutFileBtn.addEventListener('click', () => {
+          layoutFileInput.click();
+      });
+
+      layoutFileInput.addEventListener('change', () => {
+          loadLayoutFile(layoutFileInput.files[0]);
+          layoutFileInput.value = '';
+      });
+
+      output.addEventListener('dragover', event => {
+          event.preventDefault();
+      });
+      output.addEventListener('drop', event => {
+          event.preventDefault();
+          const file = event.dataTransfer.files[0];
+          if (file) {
+              loadLayoutFile(file);
+          }
+      });
+
+      smilesInput.addEventListener('input', () => {
+          currentLayout = null;
+          layoutFileInput.value = '';
+          render();
+      });
+      form.addEventListener('input', render);
+      showAllHCheckbox.addEventListener('change', render);
+      showValuesCheckbox.addEventListener('change', () => {
+          refreshValuesControls();
+          render();
+      });
+      render();
+    </script>
+  </body>
+</html>

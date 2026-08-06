@@ -209,12 +209,23 @@ exports[`isotope: labelled-glycine > matches the recorded layout metrics 1`] = `
 }
 `;
 
+exports[`macro-fused: macrocyclic-kinase-inhibitor > matches the recorded layout metrics 1`] = `
+{
+  "bondLengthCV": 0.237,
+  "edges": 38,
+  "minAtomDist": 18.45,
+  "overlap": 0.92,
+  "rings": 5,
+  "vertices": 34,
+}
+`;
+
 exports[`macrocycle: amphotericin-b > matches the recorded layout metrics 1`] = `
 {
-  "bondLengthCV": 0.067,
+  "bondLengthCV": 0.046,
   "edges": 85,
   "minAtomDist": 10.42,
-  "overlap": 5.4,
+  "overlap": 7.8,
   "rings": 3,
   "vertices": 83,
 }
@@ -225,7 +236,7 @@ exports[`macrocycle: cyclosporin-a > matches the recorded layout metrics 1`] = `
   "bondLengthCV": 0,
   "edges": 97,
   "minAtomDist": 14.93,
-  "overlap": 5.9,
+  "overlap": 5.82,
   "rings": 1,
   "vertices": 97,
 }
@@ -244,10 +255,10 @@ exports[`macrocycle: erythromycin > matches the recorded layout metrics 1`] = `
 
 exports[`macrocycle: rapamycin > matches the recorded layout metrics 1`] = `
 {
-  "bondLengthCV": 0.287,
+  "bondLengthCV": 0.113,
   "edges": 82,
-  "minAtomDist": 13.76,
-  "overlap": 7.1,
+  "minAtomDist": 3.83,
+  "overlap": 7.35,
   "rings": 4,
   "vertices": 79,
 }

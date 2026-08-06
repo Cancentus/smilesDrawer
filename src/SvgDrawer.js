@@ -26,10 +26,11 @@ export default class SvgDrawer {
      * @param {?(string|String|Element)} target The id of the HTML svg element the structure is drawn to - or the element itself.
      * @param {String} themeName='dark' The name of the theme to use. Built-in themes are 'light' and 'dark'.
      * @param {Boolean} infoOnly=false Only output info on the molecule without drawing anything to the canvas.
+     * @param {?Object} presetLayout A pre-computed layout ({atoms, bonds}, see DrawerBase.applyPresetLayout) to draw instead of running the automatic layout.
      *
      * @returns {SVGSVGElement} The (possibly new) SVG element that was drawn to.
      */
-    draw(data, target, themeName = 'light', weights = null, infoOnly = false, highlight_atoms = [], weightsNormalized = false) {
+    draw(data, target, themeName = 'light', weights = null, infoOnly = false, highlight_atoms = [], weightsNormalized = false, presetLayout = null, atomAnnotations = null) {
         let svg = null;
 
         if (target === null || target === 'svg') {
@@ -66,7 +67,7 @@ export default class SvgDrawer {
 
         let preprocessor = this.preprocessor;
 
-        preprocessor.initDraw(data, themeName, infoOnly, highlight_atoms);
+        preprocessor.initDraw(data, themeName, infoOnly, highlight_atoms, presetLayout);
 
         if (!infoOnly) {
             this.themeManager = new ThemeManager(this.opts.themes, themeName);
@@ -84,6 +85,10 @@ export default class SvgDrawer {
         this.drawAtomHighlights(preprocessor.opts.debug);
         this.drawEdges(preprocessor.opts.debug);
         this.drawVertices(preprocessor.opts.debug);
+
+        if (atomAnnotations !== null) {
+            this.drawAtomAnnotations(atomAnnotations);
+        }
 
         if (weights !== null) {
             this.drawWeights(weights, weightsNormalized);
@@ -454,6 +459,19 @@ export default class SvgDrawer {
                 }
             }
 
+            svgWrapper.drawAtomHitTarget(vertex.position.x, vertex.position.y, {
+                vertexId:  vertex.id,
+                atomIdx:   atom.idx,
+                element:   atom.element,
+                color:     this.themeManager.getColor(atom.element),
+                charge:    charge,
+                isotope:   isotope,
+                hydrogens: hydrogens,
+                rings:     atom.rings.length ? atom.rings.join(',') : null,
+                aromatic:  atom.isPartOfAromaticRing ? 'true' : null,
+                class:     atom.class,
+            });
+
             if (debug) {
                 const value = 'v' + vertex.id + ' ' + ArrayHelper.print(atom.ringbonds);
                 svgWrapper.drawDebugText(vertex.position.x, vertex.position.y, value);
@@ -465,6 +483,48 @@ export default class SvgDrawer {
             for (let i = 0; i < rings.length; i++) {
                 let center = rings[i].center;
                 svgWrapper.drawDebugPoint(center.x, center.y, 'r' + rings[i].id, '#00f');
+            }
+        }
+    }
+
+    /**
+     * Draw colored text annotations near one or more atoms (e.g. pKa values).
+     *
+     * @param {Array<{atomIdx: Number, text: String, color?: String}>} atomAnnotations
+     */
+    drawAtomAnnotations(atomAnnotations) {
+        if (!atomAnnotations || atomAnnotations.length === 0) {
+            return;
+        }
+
+        const graph = this.preprocessor.graph;
+        const byAtomIdx = new Map();
+
+        for (const annotation of atomAnnotations) {
+            if (!byAtomIdx.has(annotation.atomIdx)) {
+                byAtomIdx.set(annotation.atomIdx, []);
+            }
+            byAtomIdx.get(annotation.atomIdx).push(annotation);
+        }
+
+        for (const [atomIdx, group] of byAtomIdx) {
+            const vertexId = graph.atomIdxToVertexId[atomIdx];
+            if (vertexId === undefined) {
+                console.warn(`Atom annotation: atomIdx ${atomIdx} not found; skipping.`);
+                continue;
+            }
+
+            const vertex = graph.vertices[vertexId];
+            for (let stackIndex = 0; stackIndex < group.length; stackIndex++) {
+                const {text, color} = group[stackIndex];
+                const fill = color || this.themeManager.getColor('FOREGROUND');
+                this.svgWrapper.drawAtomAnnotation(
+                    vertex.position.x,
+                    vertex.position.y,
+                    text,
+                    fill,
+                    stackIndex
+                );
             }
         }
     }

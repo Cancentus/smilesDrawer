@@ -266,7 +266,7 @@ export default class Graph {
      * @param {Uint8Array} [visited=null] An array holding a flag on whether or not a node has been visited.
      */
     traverseTree(vertexId: number, parentVertexId: number, callback: Function, maxDepth?: number, ignoreFirst?: boolean, depth?: number, visited?: Uint8Array): void;
-    kkLayout(vertexIds: any, center: any, startVertexId: any, ring: any, bondLength: any, threshold?: number, innerThreshold?: number, maxIteration?: number, maxInnerIteration?: number, maxEnergy?: number): void;
+    kkLayout(vertexIds: any, center: any, startVertexId: any, ring: any, bondLength: any, threshold?: number, innerThreshold?: number, maxIteration?: number, maxInnerIteration?: number, maxEnergy?: number, seedStrategy?: any): any;
     /**
      * PRIVATE FUNCTION used by getBridges().
      */

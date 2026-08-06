@@ -36,6 +36,8 @@ export default class SvgWrapper {
         this.vertices = [];
         this.gradients = [];
         this.highlights = [];
+        this.hitTargets = [];
+        this.annotations = [];
 
         // maintain the dimensions
         this.drawingWidth = 0;
@@ -72,6 +74,9 @@ export default class SvgWrapper {
                 .sub {
                     font: ${this.opts.fontSizeSmall}pt ${this.opts.fontFamily};
                 }
+                .annotation {
+                    font: ${this.opts.annotations.fontSize}pt ${this.opts.fontFamily};
+                }
             `));
 
         if (this.svg) {
@@ -91,7 +96,12 @@ export default class SvgWrapper {
             highlights = document.createElementNS('http://www.w3.org/2000/svg', 'g'),
             paths = document.createElementNS('http://www.w3.org/2000/svg', 'g'),
             vertices = document.createElementNS('http://www.w3.org/2000/svg', 'g'),
+            annotations = document.createElementNS('http://www.w3.org/2000/svg', 'g'),
+            hitTargets = document.createElementNS('http://www.w3.org/2000/svg', 'g'),
             pathChildNodes = this.paths;
+
+        hitTargets.setAttributeNS(null, 'class', 'atom-hit-targets');
+        annotations.setAttributeNS(null, 'class', 'atom-annotations');
 
         { // Set up the basic masking layer...
             let mask = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -125,6 +135,12 @@ export default class SvgWrapper {
         for (let vertex of this.vertices) {
             vertices.appendChild(vertex);
         }
+        for (let annotation of this.annotations) {
+            annotations.appendChild(annotation);
+        }
+        for (let hitTarget of this.hitTargets) {
+            hitTargets.appendChild(hitTarget);
+        }
         for (let mask of this.maskElements) {
             masks.appendChild(mask);
         }
@@ -143,6 +159,8 @@ export default class SvgWrapper {
             this.svg.appendChild(highlights);
             this.svg.appendChild(paths);
             this.svg.appendChild(vertices);
+            this.svg.appendChild(annotations);
+            this.svg.appendChild(hitTargets);
         }
         else {
             this.container.appendChild(defs);
@@ -150,6 +168,8 @@ export default class SvgWrapper {
             this.container.appendChild(background);
             this.container.appendChild(paths);
             this.container.appendChild(vertices);
+            this.container.appendChild(annotations);
+            this.container.appendChild(hitTargets);
             return this.container;
         }
     }
@@ -448,6 +468,80 @@ export default class SvgWrapper {
         ball.setAttributeNS(null, 'fill', color);
 
         this.highlights.push(ball);
+    }
+
+    /**
+     * Draw an invisible, hoverable hit-target for an atom, tagged with its data as
+     * `data-*` attributes so a consumer (e.g. AtomTooltip) can hit-test and read atom
+     * info purely from the DOM. Drawn for every vertex regardless of visualization mode,
+     * since a plain skeletal carbon has no other SVG element at its position.
+     *
+     * @param {Number} x The x position of the vertex.
+     * @param {Number} y The y position of the vertex.
+     * @param {Object} data A map of data-attribute name (camelCase, without "data-") to
+     *                      value. Null/undefined values are omitted.
+     */
+    drawAtomHitTarget(x, y, data) {
+        let target = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        target.setAttributeNS(null, 'cx', x);
+        target.setAttributeNS(null, 'cy', y);
+        target.setAttributeNS(null, 'r', this.opts.bondLength / 3);
+        target.setAttributeNS(null, 'fill', 'transparent');
+        target.setAttributeNS(null, 'pointer-events', 'all');
+
+        for (const key of Object.keys(data)) {
+            const value = data[key];
+            if (value === null || value === undefined || value === '') {
+                continue;
+            }
+            const attr = 'data-' + key.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+            target.setAttributeNS(null, attr, value);
+        }
+
+        this.hitTargets.push(target);
+    }
+
+    /**
+     * Draw a colored text annotation near an atom position.
+     *
+     * @param {Number} x The x position of the vertex.
+     * @param {Number} y The y position of the vertex.
+     * @param {String} text The annotation text (e.g. a pKa value).
+     * @param {String} color CSS fill color.
+     * @param {Number} [stackIndex=0] Vertical stack index when multiple labels share one atom.
+     */
+    drawAtomAnnotation(x, y, text, color, stackIndex = 0) {
+        const fontSize = this.opts.annotations.fontSize;
+        const offsetX = this.opts.annotations.offsetX * this.opts.bondLength;
+        const offsetY = this.opts.annotations.offsetY * this.opts.bondLength
+            + stackIndex * this.opts.annotations.lineSpacing * fontSize;
+
+        const textX = x + offsetX;
+        const textY = y - offsetY;
+
+        const bbox = SvgWrapper.measureText(text, fontSize, this.opts.fontFamily);
+
+        if (textX + bbox.width > this.maxX) {
+            this.maxX = textX + bbox.width;
+        }
+        if (textX < this.minX) {
+            this.minX = textX;
+        }
+        if (textY - bbox.height < this.minY) {
+            this.minY = textY - bbox.height;
+        }
+        if (textY > this.maxY) {
+            this.maxY = textY;
+        }
+
+        let textElem = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        textElem.setAttributeNS(null, 'x', textX);
+        textElem.setAttributeNS(null, 'y', textY);
+        textElem.setAttributeNS(null, 'class', 'annotation');
+        textElem.setAttributeNS(null, 'fill', color);
+        textElem.appendChild(document.createTextNode(text));
+
+        this.annotations.push(textElem);
     }
 
     /**

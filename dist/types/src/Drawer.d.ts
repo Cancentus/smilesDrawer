@@ -25,8 +25,10 @@ export default class Drawer {
      * @param {string|String|HTMLCanvasElement} target The id of the HTML canvas element the structure is drawn to - or the element itself.
      * @param {String} themeName='dark' The name of the theme to use. Built-in themes are 'light' and 'dark'.
      * @param {Boolean} infoOnly=false Only output info on the molecule without drawing anything to the canvas.
+     * @param {String[]} highlight_atoms An array of atom classes to highlight.
+     * @param {?Object} presetLayout A pre-computed layout ({atoms, bonds}, see DrawerBase.applyPresetLayout) to draw instead of running the automatic layout.
      */
-    draw(data: any, target: string | string | HTMLCanvasElement, themeName?: string, infoOnly?: boolean, highlight_atoms?: any[]): void;
+    draw(data: any, target: string | string | HTMLCanvasElement, themeName?: string, infoOnly?: boolean, highlight_atoms?: string[], presetLayout?: any | null): void;
     /**
      * Returns the total overlap score of the current molecule.
      *

@@ -11,10 +11,11 @@ export default class SvgDrawer {
      * @param {?(string|String|Element)} target The id of the HTML svg element the structure is drawn to - or the element itself.
      * @param {String} themeName='dark' The name of the theme to use. Built-in themes are 'light' and 'dark'.
      * @param {Boolean} infoOnly=false Only output info on the molecule without drawing anything to the canvas.
+     * @param {?Object} presetLayout A pre-computed layout ({atoms, bonds}, see DrawerBase.applyPresetLayout) to draw instead of running the automatic layout.
      *
      * @returns {SVGSVGElement} The (possibly new) SVG element that was drawn to.
      */
-    draw(data: any, target: (string | string | Element) | null, themeName?: string, weights?: any, infoOnly?: boolean, highlight_atoms?: any[], weightsNormalized?: boolean): SVGSVGElement;
+    draw(data: any, target: (string | string | Element) | null, themeName?: string, weights?: any, infoOnly?: boolean, highlight_atoms?: any[], weightsNormalized?: boolean, presetLayout?: any | null, atomAnnotations?: any): SVGSVGElement;
     themeManager: ThemeManager;
     /**
      * Draws the parsed smiles data to a canvas element.
@@ -56,6 +57,16 @@ export default class SvgDrawer {
      * @param {Boolean} debug A boolean indicating whether or not to draw debug messages to the canvas.
      */
     drawVertices(debug: boolean): void;
+    /**
+     * Draw colored text annotations near one or more atoms (e.g. pKa values).
+     *
+     * @param {Array<{atomIdx: Number, text: String, color?: String}>} atomAnnotations
+     */
+    drawAtomAnnotations(atomAnnotations: Array<{
+        atomIdx: number;
+        text: string;
+        color?: string;
+    }>): void;
     /**
      * Draw the weights on a background image.
      * @param {Number[]} weights The weights assigned to each atom.

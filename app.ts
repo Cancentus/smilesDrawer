@@ -1,3 +1,5 @@
+import AtomTooltip       from './src/AtomTooltip';
+import AtomValueOverlay  from './src/AtomValueOverlay';
 import Drawer         from './src/Drawer';
 import GaussDrawer    from './src/GaussDrawer';
 import Graph          from './src/Graph';
@@ -15,6 +17,8 @@ import SvgDrawer      from './src/SvgDrawer';
 export default class SmilesDrawerNS {
     static Version = '2.4.1';
 
+    static AtomTooltip       = AtomTooltip;
+    static AtomValueOverlay  = AtomValueOverlay;
     static Drawer         = Drawer;
     static GaussDrawer    = GaussDrawer;
     static Parser         = Parser;

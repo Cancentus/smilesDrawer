@@ -40,6 +40,15 @@ export default [
         smiles: 'C[C@@H]1CC[C@H]2C[C@H](/C(=C/C=C/C=C/[C@H](C[C@H](C(=O)[C@@H]([C@@H](/C(=C/[C@H](C(=O)C[C@H](OC(=O)[C@@H]3CCCCN3C(=O)C(=O)[C@@]1(O)O2)[C@H](C)C[C@@H]1CC[C@H](O)[C@@H](OC)C1)C)/C)O)OC)C)C)/C)OC',
     },
 
+    // Macrocycles ortho-fused to small rings via a short shared bond path.
+    // Flat-arc fusion draws each small ring as a polygon off the macrocycle
+    // instead of collapsing the whole system into Kamada-Kawai.
+    {
+        name:   'macrocyclic-kinase-inhibitor',
+        group:  'macro-fused',
+        smiles: 'CC1=CC5=C(C(=N1)OC)C2=CC(=N[N]2)NC3=CN=C(C(=N3)N[C@@H]4CCCNC4NCO5)C#N',
+    },
+
     // Fused polycyclic ring systems: ring-fusion layout and stereo wedges.
     {
         name:   'cholesterol',

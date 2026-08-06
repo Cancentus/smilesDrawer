@@ -1,3 +1,4 @@
+import AtomTooltip from './src/AtomTooltip';
 import Drawer from './src/Drawer';
 import GaussDrawer from './src/GaussDrawer';
 import Graph from './src/Graph';
@@ -13,6 +14,16 @@ import SvgDrawer from './src/SvgDrawer';
  */
 export default class SmilesDrawerNS {
     static Version: string;
+    static AtomTooltip: typeof AtomTooltip;
+    static AtomValueOverlay: {
+        apply: typeof import("./src/AtomValueOverlay").apply;
+        buildTooltipRows: typeof import("./src/AtomValueOverlay").buildTooltipRows;
+        overlayCss: typeof import("./src/AtomValueOverlay").overlayCss;
+        parseAtomValueBundle: typeof import("./src/AtomValueOverlay").parseAtomValueBundle;
+        parsePkaDatasets: typeof import("./src/AtomValueOverlay").parsePkaDatasets;
+        providerDisplayName: typeof import("./src/AtomValueOverlay").providerDisplayName;
+        pkaRoleColor: typeof import("./src/AtomValueOverlay").pkaRoleColor;
+    };
     static Drawer: typeof Drawer;
     static GaussDrawer: typeof GaussDrawer;
     static Parser: typeof Parser;
