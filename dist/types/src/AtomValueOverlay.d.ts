@@ -28,12 +28,31 @@ export function parseAtomValueBundle(json: object): AtomValueBundle;
  * @param {SVGSVGElement} svgEl
  * @param {AtomValueDataset|null|undefined} dataset
  * @param {AtomValueTarget} target
- * @param {{ defaultColor?: string, separatorColor?: string }} [options]
+ * @param {{ defaultColor?: string, separatorColor?: string, atomFontSize?: number }} [options]
+ *        `atomFontSize` is the drawer's `opts.fontSizeLarge`, in pt.
  * @returns {SVGSVGElement}
  */
 export function apply(svgEl: SVGSVGElement, dataset: AtomValueDataset | null | undefined, target: AtomValueTarget, options?: {
     defaultColor?: string;
     separatorColor?: string;
+    atomFontSize?: number;
+}): SVGSVGElement;
+/**
+ * Grow the SVG's viewBox once to fit the largest label any dataset in this bundle
+ * could need, so later toggling which dataset `apply()` draws never changes the
+ * viewBox. Call whenever a bundle is loaded/drawn, regardless of which dataset (if
+ * any) is currently shown; safe to call before or after `apply()`, and safe to call
+ * with an empty/errored bundle (no-op). Must run after the structure's own viewBox
+ * has been set (i.e. after draw() completes) - same precondition `apply()` already has.
+ *
+ * @param {SVGSVGElement} svgEl
+ * @param {AtomValueBundle|null|undefined} bundle
+ * @param {AtomValueTarget} target
+ * @param {{ atomFontSize?: number }} [options]
+ * @returns {SVGSVGElement}
+ */
+export function fitViewBoxToBundle(svgEl: SVGSVGElement, bundle: AtomValueBundle | null | undefined, target: AtomValueTarget, options?: {
+    atomFontSize?: number;
 }): SVGSVGElement;
 /**
  * Build AtomTooltip extra rows for all datasets on one atom.
@@ -59,6 +78,7 @@ export function overlayCss(): string;
 declare namespace _default {
     export { apply };
     export { buildTooltipRows };
+    export { fitViewBoxToBundle };
     export { overlayCss };
     export { parseAtomValueBundle };
     export { parsePkaDatasets };

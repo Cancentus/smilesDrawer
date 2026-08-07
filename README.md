@@ -9,7 +9,7 @@
 
 No server, no images, no templates, just a SMILES 😊
 
-Current Version: **2.4.1**
+Current Version: **2.5.0**
 
 ### Examples in Specific Frameworks
 
@@ -70,14 +70,14 @@ A very simple JSFiddle example can be found [here](https://jsfiddle.net/zjdtkL57
 
 ### Installation
 
-This fork is not published to NPM. Install it straight from Git:
+Published to npm under the `@cancentus` org:
 
 ```sh
-npm install github:Cancentus/smilesDrawer
-bun  add     github:Cancentus/smilesDrawer
+npm install @cancentus/smiles-drawer
+bun  add     @cancentus/smiles-drawer
 ```
 
-The minified bundles and type declarations are committed, so this works with no build step and no `trustedDependencies` entry. Everything else in `dist` is generated — clone the repo and run `npm install` (or `npm run release`) to build the full set.
+The minified bundles and type declarations are committed, so this also works installed straight from Git (`npm install github:Cancentus/smilesDrawer`) with no build step and no `trustedDependencies` entry. Everything else in `dist` is generated — clone the repo and run `npm install` (or `npm run release`) to build the full set.
 
 ### Building Smiles Drawer
 
@@ -107,7 +107,7 @@ In order to have nice consistent font rendering you have to include the droid sa
     <input id="example-input" name="example-input" />
     <canvas id="example-canvas" width="500" height="500"></canvas>
 
-    <script src="https://unpkg.com/smiles-drawer@2/dist/smiles-drawer.min.js"></script>
+    <script src="https://unpkg.com/@cancentus/smiles-drawer@2/dist/smiles-drawer.min.js"></script>
     <script>
       let input = document.getElementById("example-input");
       let options = {};

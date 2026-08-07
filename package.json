@@ -1,6 +1,6 @@
 {
-  "name": "smiles-drawer",
-  "version": "2.4.1",
+  "name": "@cancentus/smiles-drawer",
+  "version": "2.5.0",
   "description": "A SMILES drawer and parser. Generate molecular structure depictions in pure JavaScript.",
   "exports": {
     ".": {
@@ -13,11 +13,17 @@
   "module": "./dist/smiles-drawer.min.mjs",
   "repository": {
     "type": "git",
-    "url":  "git+https://github.com/reymond-group/smilesDrawer.git"
+    "url":  "git+https://github.com/Cancentus/smilesDrawer.git"
   },
   "author": "Daniel Probst, Reymond Group, University of Berne",
   "license": "MIT",
   "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
   "devDependencies": {
     "@stylistic/eslint-plugin": "^5.6.1",
     "esbuild":                  "^0.28.1",

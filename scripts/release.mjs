@@ -23,6 +23,7 @@ await esbuild.build(Object.assign({}, params.BASE, {
     outfile: 'dist/smiles-drawer.mjs',
     format:  'esm',
     minify:  false,
+    define:  {__SMILES_DRAWER_ESM__: 'true'},
 }));
 
 // Minified JavaScript Module
@@ -31,4 +32,5 @@ await esbuild.build(Object.assign({}, params.BASE, {
     format:    'esm',
     minify:    true,
     sourcemap: false,
+    define:    {__SMILES_DRAWER_ESM__: 'true'},
 }));

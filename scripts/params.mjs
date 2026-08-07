@@ -3,6 +3,8 @@ export const BASE = {
     target:      ['chrome65'],
     sourcemap:   true,
     bundle:      true,
+    // ESM builds override this to skip the window-globals side effect (see app.ts).
+    define: {__SMILES_DRAWER_ESM__: 'false'},
 };
 
 // Targets for local development and custom builds:

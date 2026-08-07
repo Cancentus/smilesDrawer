@@ -18,6 +18,7 @@ export default class SmilesDrawerNS {
     static AtomValueOverlay: {
         apply: typeof import("./src/AtomValueOverlay").apply;
         buildTooltipRows: typeof import("./src/AtomValueOverlay").buildTooltipRows;
+        fitViewBoxToBundle: typeof import("./src/AtomValueOverlay").fitViewBoxToBundle;
         overlayCss: typeof import("./src/AtomValueOverlay").overlayCss;
         parseAtomValueBundle: typeof import("./src/AtomValueOverlay").parseAtomValueBundle;
         parsePkaDatasets: typeof import("./src/AtomValueOverlay").parsePkaDatasets;

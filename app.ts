@@ -15,7 +15,7 @@ import SvgDrawer      from './src/SvgDrawer';
  * @typicalname SmilesDrawer
  */
 export default class SmilesDrawerNS {
-    static Version = '2.4.1';
+    static Version = '2.5.0';
 
     static AtomTooltip       = AtomTooltip;
     static AtomValueOverlay  = AtomValueOverlay;
@@ -104,8 +104,13 @@ export default class SmilesDrawerNS {
     }
 }
 
-// If we're in a browser window, add the SmilesDrawer globals
+// If we're in a browser window, add the SmilesDrawer globals — but not in the ESM
+// build, where an import is expected to have no side effects. __SMILES_DRAWER_ESM__
+// is substituted by esbuild's `define` (see scripts/params.mjs); the `typeof` guard
+// keeps this safe when the identifier is never replaced (e.g. under vitest).
 // TypeScript tricks from https://stackoverflow.com/a/12709880
+declare const __SMILES_DRAWER_ESM__: boolean;
+
 declare global {
     interface Window {
         SmilesDrawer: typeof SmilesDrawerNS
@@ -113,9 +118,11 @@ declare global {
     }
 }
 
-if (typeof window !== 'undefined' && window.document && window.document.createElement) {
-    window.SmilesDrawer = SmilesDrawerNS;
-    window.SmiDrawer    = SmiDrawer;
+if (typeof __SMILES_DRAWER_ESM__ === 'undefined' || !__SMILES_DRAWER_ESM__) {
+    if (typeof window !== 'undefined' && window.document && window.document.createElement) {
+        window.SmilesDrawer = SmilesDrawerNS;
+        window.SmiDrawer    = SmiDrawer;
+    }
 }
 
 // If we've been required via CommonJS, export as the Romans do...
