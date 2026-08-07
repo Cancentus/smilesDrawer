@@ -15,7 +15,7 @@ import SvgDrawer      from './src/SvgDrawer';
  * @typicalname SmilesDrawer
  */
 export default class SmilesDrawerNS {
-    static Version = '2.5.0';
+    static Version = '2.5.1';
 
     static AtomTooltip       = AtomTooltip;
     static AtomValueOverlay  = AtomValueOverlay;

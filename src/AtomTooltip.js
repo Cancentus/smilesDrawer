@@ -112,9 +112,9 @@ export default class AtomTooltip {
         const header = document.createElement('div');
         header.textContent = AtomTooltip.formatLabel(dataset);
         Object.assign(header.style, {
-            fontSize:   '1.5em',
-            fontWeight: 'bold',
-            lineHeight: '1.2',
+            fontSize:     '1.5em',
+            fontWeight:   'bold',
+            lineHeight:   '1.2',
             marginBottom: '4px',
         });
         if (dataset.color) {

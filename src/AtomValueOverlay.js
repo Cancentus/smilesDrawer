@@ -130,7 +130,7 @@ function outwardAngle(vertex, target) {
  * @returns {{ x: number, y: number, fontSize: number, width: number, entry: AtomValueEntry, text: string }}
  */
 function placeLabel(vertex, entry, target, atomFontSize) {
-    const text = entry.parts.map((part) => part.text).join('/');
+    const text = entry.parts.map(part => part.text).join('/');
     // The drawer applies fontSizeLarge as pt in CSS; SVG geometry is in user units.
     const fontSize = atomFontSize * (4 / 3) * VALUE_FONT_RATIO;
     const width = text.length * fontSize * CHAR_WIDTH_RATIO;
@@ -197,7 +197,7 @@ function fitViewBoxToLabels(svgEl, labels) {
     }
 
     const parts = viewBox.split(/[\s,]+/).map(Number);
-    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+    if (parts.length !== 4 || parts.some(n => !Number.isFinite(n))) {
         return;
     }
 
@@ -534,7 +534,7 @@ export function buildTooltipRows(atomIdx, bundle) {
     const rows = [];
 
     for (const dataset of Object.values(bundle.datasets)) {
-        const entry = dataset.entries.find((candidate) => candidate.atom_index === atomIdx);
+        const entry = dataset.entries.find(candidate => candidate.atom_index === atomIdx);
 
         if (entry?.parts?.length) {
             rows.push({label: dataset.label, parts: entry.parts});

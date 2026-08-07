@@ -2326,8 +2326,8 @@ export default class DrawerBase {
     resolvePresetOverlap(vertex, parent) {
         const minSeparationSq = this.opts.fontSizeLarge ** 2;
         const collides = () => this.graph.vertices.some(other =>
-            other !== vertex && other.positioned &&
-            other.position.distanceSq(vertex.position) < minSeparationSq
+            other !== vertex && other.positioned
+            && other.position.distanceSq(vertex.position) < minSeparationSq
         );
 
         if (!collides()) {
