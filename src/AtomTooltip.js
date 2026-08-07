@@ -118,7 +118,8 @@ export default class AtomTooltip {
             marginBottom: '4px',
         });
         if (dataset.color) {
-            header.style.color = dataset.color;
+            // ponytail: tooltip box is always dark, so carbon's theme color (often near-black) stays white here
+            header.style.color = dataset.element === 'C' ? '#fff' : dataset.color;
         }
 
         const body = document.createElement('div');

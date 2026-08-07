@@ -152,7 +152,7 @@ describe('AtomTooltip', () => {
         expect(header.style.fontSize).toBe('1.5em');
         expect(header.style.fontWeight).toBe('bold');
         expect(target.getAttribute('data-color')).toBe('#222222');
-        expect(header.style.color).toBe('rgb(34, 34, 34)');
+        expect(header.style.color).toBe('rgb(255, 255, 255)');
 
         tooltip.destroy();
     });
