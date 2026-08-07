@@ -69,6 +69,20 @@ jobs:
       - name: Verify committed dist/ bundles are up to date
         run: git diff --exit-code -- dist/
 
+      - name: Debug OIDC token availability
+        run: |
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL is set"
+          else
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL is NOT set"
+          fi
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN is set"
+          else
+            echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN is NOT set"
+          fi
+          npm --version
+
       - name: Publish to npm (OIDC)
         run: |
           set -euo pipefail
