@@ -9,13 +9,14 @@ import ReactionDrawer from './src/ReactionDrawer';
 import ReactionParser from './src/ReactionParser';
 import SmiDrawer      from './src/SmilesDrawer';
 import SvgDrawer      from './src/SvgDrawer';
+import {setRdkit, layoutFromSmiles} from './src/RdkitLayout';
 
 /**
  * The SmilesDrawer namespace.
  * @typicalname SmilesDrawer
  */
 export default class SmilesDrawerNS {
-    static Version = '2.5.1';
+    static Version = '3.0.0';
 
     static AtomTooltip       = AtomTooltip;
     static AtomValueOverlay  = AtomValueOverlay;
@@ -101,6 +102,32 @@ export default class SmilesDrawerNS {
                 errorCallback(err);
             }
         }
+    }
+
+    /**
+    * Registers a loaded @rdkit/rdkit module. Once registered, SmiDrawer.drawMolecule()
+    * (and thus SmiDrawer.apply()) automatically lays molecules out with CoordGen instead
+    * of smilesDrawer's own algorithm. smilesDrawer never imports @rdkit/rdkit itself -
+    * the host app loads the module and its .wasm asset and passes it in here.
+    *
+    * @param module - The object returned by @rdkit/rdkit's initRDKitModule().
+    */
+    static setRdkit(module: object): void {
+        setRdkit(module);
+    }
+
+    /**
+    * Computes a CoordGen 2D layout for a SMILES string, for use as the `presetLayout`
+    * argument to SvgDrawer.draw()/Drawer.draw(), or SmiDrawer.drawFromLayout(). Returns
+    * null (never throws) if no module is registered, the SMILES is invalid, or RDKit
+    * otherwise fails - callers should fall back to the automatic layout in that case.
+    *
+    * @param smiles - A SMILES string.
+    * @param module - The @rdkit/rdkit module to use (defaults to the one passed to setRdkit()).
+    * @returns A layout object, or null.
+    */
+    static layoutFromSmiles(smiles: string, module?: object): object | null {
+        return layoutFromSmiles(smiles, module);
     }
 }
 

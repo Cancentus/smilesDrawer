@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SMILES Playground</title>
     <script type="text/javascript" src="../../dist/smiles-drawer.dev.js"></script>
+    <script type="text/javascript" src="../../node_modules/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
     <style>
       body {
         font: 14px Arial, Helvetica, sans-serif;
@@ -187,6 +188,12 @@
     </div>
 
     <script type="text/javascript">
+      // Kick off RDKit's wasm load immediately, before anything else on the page,
+      // so CoordGen layouts become the default as soon as possible - not gated
+      // behind any manual toggle. Everything below draws with smilesDrawer's own
+      // automatic layout in the meantime, then re-renders once this resolves.
+      const rdkitReady = initRDKitModule();
+
       // The two string options with a fixed set of values. Everything else is
       // derived from the type of its default, so new options show up for free.
       const ENUMS = {
@@ -563,6 +570,13 @@
           render();
       });
       render();
+
+      rdkitReady.then(rdkit => {
+          SmilesDrawer.setRdkit(rdkit);
+          render();
+      }).catch(err => {
+          console.error('Failed to load RDKit; falling back to the automatic layout.', err);
+      });
     </script>
   </body>
 </html>

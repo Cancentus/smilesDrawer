@@ -1,6 +1,6 @@
 {
   "name": "@cancentus/smiles-drawer",
-  "version": "2.5.1",
+  "version": "3.0.0",
   "description": "A SMILES drawer and parser. Generate molecular structure depictions in pure JavaScript.",
   "exports": {
     ".": {
@@ -25,6 +25,7 @@
     "dist"
   ],
   "devDependencies": {
+    "@rdkit/rdkit":             "^2025.3.4-1.0.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "esbuild":                  "^0.28.1",
     "eslint":                   "^10.8.0",

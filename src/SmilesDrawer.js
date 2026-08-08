@@ -5,6 +5,7 @@ import ReactionDrawer from './ReactionDrawer';
 import ReactionParser from './ReactionParser';
 import SvgDrawer      from './SvgDrawer';
 import SvgWrapper     from './SvgWrapper';
+import {getRdkit, layoutFromSmiles} from './RdkitLayout';
 
 export default class SmilesDrawer {
     constructor(moleculeOptions = {}, reactionOptions = {}) {
@@ -163,7 +164,11 @@ export default class SmilesDrawer {
 
     drawMolecule(smiles, target, theme, weights, callback) {
         let parseTree = Parser.parse(smiles);
-        this.drawParseTree(parseTree, target, theme, weights, callback);
+        // If a @rdkit/rdkit module has been registered (see RdkitLayout.setRdkit()),
+        // use its CoordGen layout instead of smilesDrawer's own automatic one - it
+        // falls back to null (and thus the automatic layout) on any failure.
+        let layout = getRdkit() ? layoutFromSmiles(smiles) : null;
+        this.drawParseTree(parseTree, target, theme, weights, callback, layout);
     }
 
     /**

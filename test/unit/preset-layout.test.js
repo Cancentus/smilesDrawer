@@ -52,6 +52,33 @@ const stereoLayout = {
     ],
 };
 
+// The same symmetric-substituent shape as stereoLayout above, but without a
+// decoy atom: the three real heavy substituents (N, Br, Cl) sit exactly 120
+// degrees apart around the stereocenter, so their centroid coincides with
+// it - the case that degenerated the old centroid-direction heuristic into a
+// fixed, arbitrary placement direction. Unlike stereoLayout's contrived F
+// marker, this reproduces a real report: with @rdkit/rdkit's CoordGen layout
+// for a large fused-ring molecule, that fixed direction landed the
+// synthesized hydrogen close enough to a genuine ring nitrogen (about a
+// third of a bond length away) to be hard to tell apart on screen, without
+// tripping resolvePresetOverlap()'s glyph-overlap threshold. See
+// DrawerBase.applyPresetLayout()'s largest-gap-bisector placement.
+const symmetricStereoLayout = {
+    version: 1,
+    smiles:  'N[C@@H](Br)Cl',
+    atoms: [
+        {atom_index: 0, element: 'N',  x: 100, y: 0},
+        {atom_index: 1, element: 'C',  x: 0,   y: 0},
+        {atom_index: 2, element: 'Br', x: -50, y: 86.60254037844386},
+        {atom_index: 3, element: 'Cl', x: -50, y: -86.60254037844386},
+    ],
+    bonds: [
+        {begin_atom_index: 0, end_atom_index: 1, order: 'single', stereo: 'none'},
+        {begin_atom_index: 1, end_atom_index: 2, order: 'single', stereo: 'none'},
+        {begin_atom_index: 1, end_atom_index: 3, order: 'single', stereo: 'none'},
+    ],
+};
+
 describe('drawFromLayout', () => {
     it('applies the preset atom positions instead of the automatic layout', () => {
         createJSDOM();
@@ -148,6 +175,41 @@ describe('drawFromLayout', () => {
             for (let j = i + 1; j < drawn.length; j++) {
                 expect(drawn[i].position.distance(drawn[j].position)).toBeGreaterThan(0.1 * bondLength);
             }
+        }
+
+        warnSpy.mockRestore();
+    });
+
+    it('places a symmetric stereocenter\'s synthesized hydrogen well clear of every real substituent', () => {
+        createJSDOM();
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const smilesDrawer = new SmilesDrawer({compactDrawing: false});
+        let drawnSvg = null;
+        smilesDrawer.drawFromLayout(symmetricStereoLayout, 'svg', 'light', (svg) => {
+            drawnSvg = svg;
+        });
+
+        expect(drawnSvg).not.toBeNull();
+        expect(warnSpy).not.toHaveBeenCalled();
+
+        const vertices = smilesDrawer.drawer.preprocessor.graph.vertices;
+        const bondLength = smilesDrawer.drawer.opts.bondLength;
+
+        // One extra vertex beyond the 4 layout atoms: the stereocenter's
+        // synthesized implicit hydrogen.
+        expect(vertices).toHaveLength(5);
+
+        const hydrogen = vertices.find(v => v.value.element === 'H');
+        const heavyVertices = vertices.filter(v => v !== hydrogen);
+
+        // The old centroid-direction heuristic placed the hydrogen directly on
+        // top of the N substituent in this exact shape (distance ~0); the
+        // largest-gap-bisector placement puts it bondLength away from its two
+        // nearest real neighbours and 2*bondLength from the third, so every
+        // heavy substituent should be comfortably far, not just non-overlapping.
+        for (const heavy of heavyVertices) {
+            expect(hydrogen.position.distance(heavy.position)).toBeGreaterThan(0.9 * bondLength);
         }
 
         warnSpy.mockRestore();
