@@ -2,6 +2,7 @@ import AtomTooltip from './src/AtomTooltip';
 import Drawer from './src/Drawer';
 import GaussDrawer from './src/GaussDrawer';
 import Graph from './src/Graph';
+import MiniViewer from './src/MiniViewer';
 import Parser from './src/ParserWrapper';
 import Reaction from './src/Reaction';
 import ReactionDrawer from './src/ReactionDrawer';
@@ -27,6 +28,7 @@ export default class SmilesDrawerNS {
     };
     static Drawer: typeof Drawer;
     static GaussDrawer: typeof GaussDrawer;
+    static MiniViewer: typeof MiniViewer;
     static Parser: typeof Parser;
     static ReactionDrawer: typeof ReactionDrawer;
     static ReactionParser: typeof ReactionParser;

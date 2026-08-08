@@ -9,7 +9,7 @@
 
 No server, no images, no templates, just a SMILES 😊
 
-Current Version: **3.0.0**
+Current Version: **3.1.0**
 
 ### Examples in Specific Frameworks
 
@@ -235,6 +235,35 @@ Additional built-in themes include `oldschool`, `solarized`, and `solarized-dark
 
 If `showCarbons` is `"default"` and `terminalCarbons` is `true`, the effective mode is `"terminal"` (legacy compatibility until v3.0).
 
+### MiniViewer
+
+`SmilesDrawer.MiniViewer` is a small, click-to-enlarge structure viewer for the case where
+many structures are shown at once (a table, a list of results): it draws compactly by
+default (no explicit hydrogens, small canvas) and opens a standard-size view in a modal
+`<dialog>` when clicked or activated via keyboard. The dialog fades in/out (300ms) and its
+border color is the inverse of the resolved theme background, so it reads clearly against
+whatever page it's opened over.
+
+```javascript
+const viewer = new SmilesDrawer.MiniViewer(document.getElementById('mini'), {
+    theme: 'light',
+    expandedOptions: { width: 500, height: 500 }, // options for the enlarged dialog view
+});
+viewer.draw('CC(=O)Oc1ccccc1C(=O)O');
+```
+
+The constructor takes the host element and an options object:
+
+| Option | Description |
+| --- | --- |
+| `miniOptions`/`expandedOptions` | Molecule options merged over the mini preset / used for the enlarged view. |
+| `theme` | Theme name, as passed to `draw()` (default `'light'`). |
+| `values`/`dataset` | An `AtomValueOverlay` bundle and which of its datasets to label with, applied to both views. |
+| `showControls` | Whether the enlarged dialog builds its own "Show all H"/"Show values" toggle bar (default `true`). Set `false` when the host already has its own H/values UI. |
+| `onRender` | `(svg, {mode, drawer}) => void`, called after every draw (`mode` is `'mini'` or `'expanded'`), before the tooltip attaches. For host-specific post-processing that a `values` bundle can't express — e.g. a bespoke value overlay with its own positioning/coloring rules. |
+| `onError` | `(err) => void`, called if drawing fails. |
+
+Call `destroy()` to remove its listeners and dialog.
 
 ### Usage
 
