@@ -2238,12 +2238,19 @@ export default class DrawerBase {
         );
 
         // Any vertex the layout doesn't cover (e.g. a stereocenter's implicit
-        // hydrogen, which is materialized as its own vertex) is placed
-        // opposite the centroid of its parent's other positioned neighbours,
-        // then nudged around the parent if that lands it on top of an
-        // already-positioned vertex - the centroid-direction guess can
-        // degenerate to near-zero for a symmetric stereocenter and is not
-        // otherwise checked against the rest of the (fixed) preset layout.
+        // hydrogen, which is materialized as its own vertex) is placed in the
+        // largest open angular gap between its parent's other positioned
+        // bonds, bisecting that gap - the same strategy RDKit's own depiction
+        // code uses when adding a substituent to an existing conformer, and
+        // it degrades gracefully instead of the previous centroid-direction
+        // guess, which went to a fixed, arbitrary direction whenever the
+        // neighbours were symmetric enough for their centroid to coincide
+        // with the parent (three substituents ~120 degrees apart is a common
+        // real case, not just a contrived one - see test/unit/preset-layout.test.js).
+        // That fixed direction had no relationship to the actual layout, so it
+        // could land close to (if not exactly on) a real substituent;
+        // resolvePresetOverlap() below only catches literal glyph-on-glyph
+        // overlap, not merely-too-close placements like that.
         for (let i = 0; i < this.graph.vertices.length; i++) {
             const vertex = this.graph.vertices[i];
             if (vertex.positioned) {
@@ -2273,19 +2280,28 @@ export default class DrawerBase {
                 vertex.setPosition(parent.position.x + this.opts.bondLength, parent.position.y);
             }
             else {
-                const centroid = siblingPositions
-                    .reduce((sum, p) => sum.add(p.clone()), new Vector2(0, 0))
-                    .divide(siblingPositions.length);
-                const direction = Vector2.subtract(parent.position, centroid);
+                const angles = siblingPositions
+                    .map(p => Math.atan2(p.y - parent.position.y, p.x - parent.position.x))
+                    .sort((a, b) => a - b);
 
-                if (direction.length() < 1e-6) {
-                    direction.x = this.opts.bondLength;
-                }
-                else {
-                    direction.normalize().multiplyScalar(this.opts.bondLength);
+                // The gap "after" the last angle wraps around past +PI to the
+                // first one again - include it by comparing each angle to the
+                // next, treating the list as circular.
+                let gapStart = angles[0];
+                let gapSize  = angles[0] + 2 * Math.PI - angles[angles.length - 1];
+                for (let a = 1; a < angles.length; a++) {
+                    const size = angles[a] - angles[a - 1];
+                    if (size > gapSize) {
+                        gapStart = angles[a - 1];
+                        gapSize  = size;
+                    }
                 }
 
-                vertex.setPosition(parent.position.x + direction.x, parent.position.y + direction.y);
+                const angle = gapStart + gapSize / 2;
+                vertex.setPosition(
+                    parent.position.x + this.opts.bondLength * Math.cos(angle),
+                    parent.position.y + this.opts.bondLength * Math.sin(angle)
+                );
             }
 
             vertex.positioned = true;
