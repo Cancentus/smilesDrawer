@@ -105,16 +105,53 @@
         gap: 12px;
       }
 
+      #left {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+      }
+
       #output {
         background-color: #fff;
         border: 1px solid #ccc;
-        flex: 1;
         position: relative;
       }
 
       #canvas {
         min-height: 300px;
         overflow: auto;
+      }
+
+      #miniSection {
+        border: 1px solid #ccc;
+        padding: 8px;
+      }
+
+      #miniSection h3 {
+        font-size: 12px;
+        font-weight: normal;
+        color: #666;
+        margin: 0 0 8px;
+      }
+
+      #miniStrip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .miniTile {
+        border: 1px solid #ccc;
+        background-color: #fff;
+        width: 180px;
+        height: 140px;
+        overflow: hidden;
+      }
+
+      .miniTile svg {
+        display: block;
       }
 
       #bgLevelHint {
@@ -162,26 +199,36 @@
     <textarea id="valuesJson" placeholder='Paste atom values JSON — generic { datasets: ... } or pKa { pka_methods: ... }'></textarea>
     <div id="status"></div>
     <div id="main">
-      <div id="output">
-        <div id="canvas"></div>
-        <div id="viewerControls">
-          <label for="showAllH">
-            <input type="checkbox" id="showAllH" />
-            Show all H
-          </label>
-          <span id="valuesControls" hidden>
-            <label for="showValues">
-              <input type="checkbox" id="showValues" checked />
-              Show values
+      <div id="left">
+        <div id="output">
+          <div id="canvas"></div>
+          <div id="viewerControls">
+            <label for="showAllH">
+              <input type="checkbox" id="showAllH" />
+              Show all H
             </label>
-            <span id="valuesDetail">
-              <select id="datasetSelect" aria-label="Data source"></select>
-              <span id="valuesLegend" title="Hover an atom to see all datasets. Colors come from the JSON; pKa uses base/acid.">
-                <span class="base">● Base</span>
-                <span class="acid">● Acid</span>
+            <span id="valuesControls" hidden>
+              <label for="showValues">
+                <input type="checkbox" id="showValues" checked />
+                Show values
+              </label>
+              <span id="valuesDetail">
+                <select id="datasetSelect" aria-label="Data source"></select>
+                <span id="valuesLegend" title="Hover an atom to see all datasets. Colors come from the JSON; pKa uses base/acid.">
+                  <span class="base">● Base</span>
+                  <span class="acid">● Acid</span>
+                </span>
               </span>
             </span>
-          </span>
+          </div>
+        </div>
+        <div id="miniSection">
+          <h3>Mini viewer (compact, no explicit H) — click a tile to enlarge</h3>
+          <div id="miniStrip">
+            <div class="miniTile" id="miniLive"></div>
+            <div class="miniTile" id="miniCaffeine"></div>
+            <div class="miniTile" id="miniSteroid"></div>
+          </div>
         </div>
       </div>
       <form id="options"></form>
@@ -231,6 +278,14 @@
 
       // Re-created against the freshly drawn <svg> on every render().
       let atomTooltip = null;
+
+      // MiniViewer strip: tile 1 tracks the live SMILES input, tiles 2/3 are fixed
+      // examples so the compact rendering is visible at realistic density.
+      const MINI_EXAMPLES = {
+          miniCaffeine: 'CN1C=NC2=C1C(=O)N(C(=O)N2C)C',
+          miniSteroid:  'CC(C)CCCC(C)C1CCC2C1(CCC3C2CC=C4C3(CCC(C4)O)C)C',
+      };
+      const miniViewers = {miniLive: null, miniCaffeine: null, miniSteroid: null};
 
       function control(key, value) {
           if (ENUMS[key]) {
@@ -427,6 +482,28 @@
           atomTooltip.attach();
       }
 
+      // Rebuilds the three MiniViewer tiles: tile 1 with the live SMILES, tiles 2/3 with
+      // the fixed examples. expandedOptions/theme/values are passed through so the
+      // enlarged (clicked) view always matches the standard viewer next to it.
+      function renderMinis(themeName, drawerOptions) {
+          const smiles = {miniLive: smilesInput.value.trim(), ...MINI_EXAMPLES};
+          for (const [id, sm] of Object.entries(smiles)) {
+              miniViewers[id]?.destroy();
+              miniViewers[id] = new SmilesDrawer.MiniViewer(document.getElementById(id), {
+                  theme:           themeName,
+                  // Only the (possibly custom, e.g. the bgLevel slider) theme set, not
+                  // the rest of drawerOptions - the mini preset's size/H options must win.
+                  miniOptions:     drawerOptions.themes ? {themes: drawerOptions.themes} : undefined,
+                  expandedOptions: drawerOptions,
+                  values:          valueBundle,
+                  dataset:         showValuesCheckbox.checked ? selectedDataset : null,
+              });
+              if (sm) {
+                  miniViewers[id].draw(sm);
+              }
+          }
+      }
+
       function render() {
           const grey = parseInt(fields.bgLevel.value, 10);
           status.textContent = '';
@@ -450,6 +527,8 @@
               bgLevelHint.textContent = `${background} (overrides Dark mode)`;
           }
           output.style.backgroundColor = background;
+
+          renderMinis(themeName, drawerOptions);
 
           const onErr = err => {
               canvas.replaceChildren();

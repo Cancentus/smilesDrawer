@@ -3,6 +3,7 @@ import AtomValueOverlay  from './src/AtomValueOverlay';
 import Drawer         from './src/Drawer';
 import GaussDrawer    from './src/GaussDrawer';
 import Graph          from './src/Graph';
+import MiniViewer     from './src/MiniViewer';
 import Parser         from './src/ParserWrapper';
 import Reaction       from './src/Reaction';
 import ReactionDrawer from './src/ReactionDrawer';
@@ -16,12 +17,13 @@ import {setRdkit, layoutFromSmiles} from './src/RdkitLayout';
  * @typicalname SmilesDrawer
  */
 export default class SmilesDrawerNS {
-    static Version = '3.0.0';
+    static Version = '3.1.0';
 
     static AtomTooltip       = AtomTooltip;
     static AtomValueOverlay  = AtomValueOverlay;
     static Drawer         = Drawer;
     static GaussDrawer    = GaussDrawer;
+    static MiniViewer     = MiniViewer;
     static Parser         = Parser;
     static ReactionDrawer = ReactionDrawer;
     static ReactionParser = ReactionParser;
