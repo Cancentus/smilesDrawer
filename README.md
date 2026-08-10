@@ -9,7 +9,7 @@
 
 No server, no images, no templates, just a SMILES 😊
 
-Current Version: **3.1.0**
+Current Version: **3.2.0**
 
 ### Examples in Specific Frameworks
 
@@ -259,9 +259,10 @@ The constructor takes the host element and an options object:
 | `miniOptions`/`expandedOptions` | Molecule options merged over the mini preset / used for the enlarged view. |
 | `theme` | Theme name, as passed to `draw()` (default `'light'`). |
 | `values`/`dataset` | An `AtomValueOverlay` bundle and which of its datasets to label with, applied to both views. |
-| `showControls` | Whether the enlarged dialog builds its own "Show all H"/"Show values" toggle bar (default `true`). Set `false` when the host already has its own H/values UI. |
+| `showControls` | Whether the expanded view builds its own "Show all H"/"Show values" toggle bar (default `true`). Set `false` when the host already has its own H/values UI. |
 | `onRender` | `(svg, {mode, drawer}) => void`, called after every draw (`mode` is `'mini'` or `'expanded'`), before the tooltip attaches. For host-specific post-processing that a `values` bundle can't express — e.g. a bespoke value overlay with its own positioning/coloring rules. |
 | `onError` | `(err) => void`, called if drawing fails. |
+| `expandable` | Default `true`: click/Enter/Space opens the expanded view in a modal dialog. Set `false` for a host that already has its own dialog around the structure (e.g. a row-click preview) — the expanded view (bigger size, full toggle bar) then renders directly into the host element instead, with no click affordance and no dialog. |
 
 Call `destroy()` to remove its listeners and dialog.
 

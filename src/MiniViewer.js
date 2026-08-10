@@ -101,6 +101,10 @@ export default class MiniViewer {
      *        attaches. For host-specific post-processing (e.g. a bespoke value overlay)
      *        that doesn't fit the generic `values` bundle shape.
      * @param {?Function}[options.onError] `(err) => void`, called if drawing fails.
+     * @param {Boolean}  [options.expandable=true] When false, skips all click/keyboard-open/
+     *        dialog machinery and renders the expanded-style view (bigger size, full toggle
+     *        bar per `showControls`) directly into `container`. For hosts that already have
+     *        their own modal wrapping the structure (avoids nesting a dialog in a dialog).
      */
     constructor(container, options = {}) {
         this.container        = container;
@@ -112,6 +116,7 @@ export default class MiniViewer {
         this.showControls     = options.showControls ?? true;
         this.onRender         = options.onRender || null;
         this.onError          = options.onError || null;
+        this.expandable       = options.expandable ?? true;
 
         this.smiles  = null;
         this.dialog  = null;
@@ -124,11 +129,6 @@ export default class MiniViewer {
         this._expandedShowValues = true;
         this._expandedDataset    = this.dataset ?? Object.keys(this.values?.datasets ?? {})[0] ?? null;
 
-        Object.assign(this.container.style, {cursor: 'pointer'});
-        this.container.setAttribute('role', 'button');
-        this.container.setAttribute('tabindex', '0');
-        this.container.setAttribute('aria-label', 'Enlarge structure');
-
         this._closing = false;
 
         this._onClick   = this._onClick.bind(this);
@@ -137,16 +137,29 @@ export default class MiniViewer {
         this._onDialogClose  = this._onDialogClose.bind(this);
         this._onDialogCancel = this._onDialogCancel.bind(this);
 
-        this.container.addEventListener('click', this._onClick);
-        this.container.addEventListener('keydown', this._onKeydown);
+        if (this.expandable) {
+            Object.assign(this.container.style, {cursor: 'pointer'});
+            this.container.setAttribute('role', 'button');
+            this.container.setAttribute('tabindex', '0');
+            this.container.setAttribute('aria-label', 'Enlarge structure');
+            this.container.addEventListener('click', this._onClick);
+            this.container.addEventListener('keydown', this._onKeydown);
+        }
     }
 
     /**
-     * Draws (or redraws) `smiles` into the container at mini size.
+     * Draws (or redraws) `smiles` into the container - at mini size and click-to-enlarge if
+     * `expandable`, or as the expanded-style view directly otherwise.
      * @param {String} smiles
      */
     draw(smiles) {
         this.smiles = smiles;
+
+        if (!this.expandable) {
+            this._ensureInlineStage();
+            this._drawExpanded();
+            return;
+        }
 
         const drawer = new SmiDrawer({...MINI_OPTIONS, ...this.miniOptions});
         drawer.draw(smiles, 'svg', this.theme, svg => this._finish(svg, drawer), err => this._fail(err));
@@ -161,11 +174,11 @@ export default class MiniViewer {
         this._closeDialog();
         if (this.dialog) {
             this.dialog.remove();
-            this.dialog     = null;
-            this.stage      = null;
-            this.svgHolder  = null;
+            this.dialog = null;
         }
-        this._closing = false;
+        this.stage     = null;
+        this.svgHolder = null;
+        this._closing  = false;
         this.container.replaceChildren();
     }
 
@@ -220,7 +233,7 @@ export default class MiniViewer {
 
     /** Opens the enlarged standard view in a modal `<dialog>`, building it on first use. */
     expand() {
-        if (!this.smiles) {
+        if (!this.smiles || !this.expandable) {
             return;
         }
 
@@ -289,6 +302,31 @@ export default class MiniViewer {
         setTimeout(finish, FADE_MS + 50);
     }
 
+    /**
+     * Builds the inline stage (svg holder + optional controls) directly in `container`, for
+     * `expandable: false`. Mirrors expand()'s one-time dialog-build block minus the dialog/
+     * fade/backdrop parts. Unlike the dialog, which sizes to its content, this must fill the
+     * host container so the host's own CSS on the SVG (e.g. max-height: 100%) has something
+     * real to resolve against.
+     */
+    _ensureInlineStage() {
+        if (this.stage) {
+            return;
+        }
+        this.stage = document.createElement('div');
+        Object.assign(this.stage.style, {position: 'relative', width: '100%', height: '100%'});
+        this.svgHolder = document.createElement('div');
+        Object.assign(this.svgHolder.style, {
+            width:          '100%', height:         '100%',
+            display:        'flex', alignItems:     'center', justifyContent: 'center',
+        });
+        this.stage.append(this.svgHolder);
+        if (this.showControls) {
+            this.stage.append(this._buildControls());
+        }
+        this.container.replaceChildren(this.stage);
+    }
+
     /** (Re)draws the enlarged view with the current H/values toggle state. */
     _drawExpanded() {
         const options = {...this.expandedOptions};
@@ -300,8 +338,13 @@ export default class MiniViewer {
         drawer.draw(this.smiles, 'svg', this.theme, (svg) => {
             const background = themeBackground(this.theme, drawer);
             if (background) {
-                this.dialog.style.backgroundColor = background;
-                this.dialog.style.borderColor = invertHex(background) ?? '#888888';
+                // A border only makes sense around a floating dialog card, not content
+                // sitting inline in a host's own container.
+                const paintTarget = this.dialog ?? this.container;
+                paintTarget.style.backgroundColor = background;
+                if (this.dialog) {
+                    paintTarget.style.borderColor = invertHex(background) ?? '#888888';
+                }
             }
             this.svgHolder.replaceChildren(svg);
             this._applyValues(svg, drawer, this._expandedShowValues ? this._expandedDataset : null);

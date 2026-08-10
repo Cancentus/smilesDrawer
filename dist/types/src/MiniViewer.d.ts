@@ -36,6 +36,10 @@ export default class MiniViewer {
      *        attaches. For host-specific post-processing (e.g. a bespoke value overlay)
      *        that doesn't fit the generic `values` bundle shape.
      * @param {?Function}[options.onError] `(err) => void`, called if drawing fails.
+     * @param {Boolean}  [options.expandable=true] When false, skips all click/keyboard-open/
+     *        dialog machinery and renders the expanded-style view (bigger size, full toggle
+     *        bar per `showControls`) directly into `container`. For hosts that already have
+     *        their own modal wrapping the structure (avoids nesting a dialog in a dialog).
      */
     constructor(container: HTMLElement, options?: {
         miniOptions?: any;
@@ -46,6 +50,7 @@ export default class MiniViewer {
         showControls?: boolean;
         onRender?: Function | null;
         onError?: Function | null;
+        expandable?: boolean;
     });
     container: HTMLElement;
     miniOptions: any;
@@ -56,6 +61,7 @@ export default class MiniViewer {
     showControls: boolean;
     onRender: Function;
     onError: Function;
+    expandable: boolean;
     smiles: string;
     dialog: HTMLDialogElement;
     tooltip: AtomTooltip;
@@ -69,7 +75,8 @@ export default class MiniViewer {
     _onDialogClose(): void;
     _onDialogCancel(event: any): void;
     /**
-     * Draws (or redraws) `smiles` into the container at mini size.
+     * Draws (or redraws) `smiles` into the container - at mini size and click-to-enlarge if
+     * `expandable`, or as the expanded-style view directly otherwise.
      * @param {String} smiles
      */
     draw(smiles: string): void;
@@ -87,6 +94,14 @@ export default class MiniViewer {
     expand(): void;
     /** Fades the dialog out over FADE_MS, then actually closes it. Safe to call more than once. */
     _closeAnimated(): void;
+    /**
+     * Builds the inline stage (svg holder + optional controls) directly in `container`, for
+     * `expandable: false`. Mirrors expand()'s one-time dialog-build block minus the dialog/
+     * fade/backdrop parts. Unlike the dialog, which sizes to its content, this must fill the
+     * host container so the host's own CSS on the SVG (e.g. max-height: 100%) has something
+     * real to resolve against.
+     */
+    _ensureInlineStage(): void;
     /** (Re)draws the enlarged view with the current H/values toggle state. */
     _drawExpanded(): void;
     /** Builds the "Show all H" / values toggle bar docked to the stage's top-right corner. */

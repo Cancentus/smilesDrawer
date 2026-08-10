@@ -270,6 +270,72 @@ describe('MiniViewer', () => {
         }
     });
 
+    it('expandable: false renders inline, with no click affordance and no dialog', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const values = {atomOrder: null, datasets: {m1: {label: 'M1', entries: [{atom_index: 0, parts: [{text: '1.0'}]}]}}};
+        const viewer = new MiniViewer(container, {expandable: false, values, dataset: 'm1'});
+        viewer.draw('CCCCC');
+
+        expect(container.getAttribute('role')).toBeNull();
+        expect(container.getAttribute('tabindex')).toBeNull();
+        expect(container.style.cursor).not.toBe('pointer');
+
+        expect(container.querySelector('svg')).not.toBeNull();
+        expect(container.querySelectorAll('.atom-value-overlay text').length).toBeGreaterThan(0);
+        const checkbox = [...container.querySelectorAll('input[type="checkbox"]')]
+            .find(el => el.parentElement.textContent.includes('Show all H'));
+        expect(checkbox).toBeTruthy();
+
+        expect(() => container.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}))).not.toThrow();
+        expect(dom.window.document.body.querySelector('dialog')).toBeNull();
+    });
+
+    it('expandable: false still redraws in place when a toggle changes', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container, {expandable: false});
+        viewer.draw('CCCCC');
+
+        const checkbox = [...container.querySelectorAll('input[type="checkbox"]')]
+            .find(el => el.parentElement.textContent.includes('Show all H'));
+        const glyphsBefore = container.querySelectorAll('text').length;
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+        const glyphsAfter = container.querySelectorAll('text').length;
+
+        expect(glyphsAfter).toBeGreaterThan(glyphsBefore);
+        expect(container.contains(checkbox)).toBe(true);
+    });
+
+    it('expandable: false honors showControls: false too', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container, {expandable: false, showControls: false});
+        viewer.draw('CCO');
+
+        expect(container.querySelector('svg')).not.toBeNull();
+        expect(container.querySelectorAll('input[type="checkbox"]').length).toBe(0);
+    });
+
+    it('expandable: false destroy() cleans up the inline stage', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container, {expandable: false});
+        viewer.draw('CCO');
+        viewer.destroy();
+
+        expect(container.children.length).toBe(0);
+    });
+
     it('destroy() removes the dialog and empties the container', () => {
         const dom = createJSDOM();
         const container = dom.window.document.createElement('div');
