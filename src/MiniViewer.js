@@ -42,6 +42,19 @@ function invertHex(hex) {
     return '#' + (0xffffff ^ parseInt(match[1], 16)).toString(16).padStart(6, '0');
 }
 
+/** Perceived luminance (0..1) of a `#rrggbb` color, or `null` when it isn't one (e.g. `'transparent'`). */
+function hexLuminance(hex) {
+    const match = /^#([0-9a-f]{6})$/i.exec(hex ?? '');
+    if (!match) {
+        return null;
+    }
+    const n = parseInt(match[1], 16);
+    const r = (n >> 16) & 0xff;
+    const g = (n >> 8) & 0xff;
+    const b = n & 0xff;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
 /** rAF twice (falling back to a timer) so a CSS transition sees its `from` state painted first. */
 function nextFrame(fn) {
     const raf = typeof window !== 'undefined' && window.requestAnimationFrame;
@@ -118,9 +131,10 @@ export default class MiniViewer {
         this.onError          = options.onError || null;
         this.expandable       = options.expandable ?? true;
 
-        this.smiles  = null;
-        this.dialog  = null;
-        this.tooltip = null;
+        this.smiles   = null;
+        this.dialog   = null;
+        this.tooltip  = null;
+        this.controls = null;
 
         // State for the enlarged dialog's own H/values toggles - independent of the
         // mini tile, which always draws compactly. Defaults mirror the playground's
@@ -178,6 +192,7 @@ export default class MiniViewer {
         }
         this.stage     = null;
         this.svgHolder = null;
+        this.controls  = null;
         this._closing  = false;
         this.container.replaceChildren();
     }
@@ -244,7 +259,12 @@ export default class MiniViewer {
             this.dialog.className = DIALOG_CLASS;
             // Border color is set per-draw (inverted from the theme background); the
             // width/style are fixed so only the color needs to change on redraw/retheme.
-            Object.assign(this.dialog.style, {border: '3px solid transparent', borderRadius: '8px', padding: '16px'});
+            // `color: inherit` undoes the UA stylesheet's `dialog { color: CanvasText }` -
+            // without it, a `currentColor` theme (e.g. C/H tracking the host's own text
+            // color) renders black on `document.body`-appended dialogs regardless of theme.
+            Object.assign(this.dialog.style, {
+                border: '3px solid transparent', borderRadius: '8px', padding: '16px', color: 'inherit',
+            });
             this.dialog.addEventListener('click', this._onDialogClick);
             this.dialog.addEventListener('close', this._onDialogClose);
             this.dialog.addEventListener('cancel', this._onDialogCancel);
@@ -346,6 +366,7 @@ export default class MiniViewer {
                     paintTarget.style.borderColor = invertHex(background) ?? '#888888';
                 }
             }
+            this._styleControls(background);
             this.svgHolder.replaceChildren(svg);
             this._applyValues(svg, drawer, this._expandedShowValues ? this._expandedDataset : null);
             this.onRender?.(svg, {mode: 'expanded', drawer});
@@ -361,9 +382,45 @@ export default class MiniViewer {
         });
     }
 
+    /**
+     * Re-colors the controls bar to read against `background` - the same resolved theme
+     * background the dialog/container was just painted with. `null` means a transparent
+     * surface (the `expandable: false` inline path), where the host owns the surface, so
+     * the bar follows it via `currentColor`/`inherit` instead of picking its own colors.
+     */
+    _styleControls(background) {
+        if (!this.controls) {
+            return;
+        }
+        const luminance = hexLuminance(background);
+        if (luminance === null) {
+            Object.assign(this.controls.style, {
+                background: 'transparent', borderColor: 'currentColor', color: 'inherit', colorScheme: '',
+            });
+        }
+        else if (luminance < 0.5) {
+            Object.assign(this.controls.style, {
+                background:  'rgba(255, 255, 255, 0.10)',
+                borderColor: 'rgba(255, 255, 255, 0.28)',
+                color:       '#ededed',
+                colorScheme: 'dark',
+            });
+        }
+        else {
+            Object.assign(this.controls.style, {
+                background:  'rgba(255, 255, 255, 0.92)',
+                borderColor: '#ccc',
+                color:       '#111111',
+                colorScheme: 'light',
+            });
+        }
+    }
+
     /** Builds the "Show all H" / values toggle bar docked to the stage's top-right corner. */
     _buildControls() {
         const bar = document.createElement('div');
+        // background/border color/text color are set per-draw by _styleControls(), same
+        // "width/style fixed, color set per-draw" pattern as the dialog's border.
         Object.assign(bar.style, {
             position:     'absolute',
             top:          '8px',
@@ -371,14 +428,14 @@ export default class MiniViewer {
             display:      'inline-flex',
             alignItems:   'center',
             gap:          '12px',
-            background:   'rgba(255, 255, 255, 0.92)',
-            border:       '1px solid #ccc',
+            border:       '1px solid transparent',
             borderRadius: '999px',
             padding:      '4px 10px',
             font:         '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
             userSelect:   'none',
             whiteSpace:   'nowrap',
         });
+        this.controls = bar;
 
         const hLabel    = MiniViewer._buildToggleLabel('Show all H', this._expandedShowAllH, (checked) => {
             this._expandedShowAllH = checked;

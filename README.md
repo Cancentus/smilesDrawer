@@ -9,7 +9,7 @@
 
 No server, no images, no templates, just a SMILES 😊
 
-Current Version: **3.2.0**
+Current Version: **3.2.1**
 
 ### Examples in Specific Frameworks
 

@@ -200,6 +200,42 @@ describe('MiniViewer', () => {
         expect(dialogs[1].style.borderColor).toBe('rgb(235, 235, 235)');
     });
 
+    it('restores inherited text color on the dialog, undoing the UA stylesheet default', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container, {theme: 'dark'});
+        viewer.draw('CCO');
+        container.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+
+        const dialog = dom.window.document.body.querySelector('dialog');
+        expect(dialog.style.color).toBe('inherit');
+    });
+
+    it('colors the controls bar to read against the theme background', () => {
+        const dom = createJSDOM();
+
+        const dark = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(dark);
+        const darkViewer = new MiniViewer(dark, {theme: 'dark'});
+        darkViewer.draw('CCO');
+        dark.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        const darkBar = dom.window.document.body.querySelector('dialog label').parentElement;
+
+        const light = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(light);
+        const lightViewer = new MiniViewer(light, {theme: 'light'});
+        lightViewer.draw('CCO');
+        light.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        const dialogs = dom.window.document.body.querySelectorAll('dialog');
+        const lightBar = dialogs[1].querySelector('label').parentElement;
+
+        expect(darkBar.style.color).not.toBe(lightBar.style.color);
+        expect(darkBar.style.color).toBe('rgb(237, 237, 237)');
+        expect(lightBar.style.color).toBe('rgb(17, 17, 17)');
+    });
+
     it('clicking the backdrop starts the fade-out, then the fallback timer closes it', () => {
         // Fake timers so the 300ms(+50) fallback (jsdom fires no transitionend to close
         // it the normal way) settles inside the test instead of leaking a real timer.
