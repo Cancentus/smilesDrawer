@@ -83,6 +83,12 @@ function ensureStyle() {
                \`*\` as an author-origin rule, which beats the UA origin regardless of specificity.
                Restated here to win that fight and keep the dialog centered. */
             margin: auto;
+            /* \`pointer-events\` is inherited, not reset by native showModal()'s top-layer
+               promotion - it still cascades down from this dialog's DOM parent (body). Host
+               modal frameworks (Radix, reka-ui, etc.) commonly set \`body { pointer-events:
+               none }\` while their own modal is open, which would otherwise make every click
+               in here fall straight through to whatever's behind it. */
+            pointer-events: auto;
             opacity: 0;
             transition: opacity ${FADE_MS}ms ease;
         }
