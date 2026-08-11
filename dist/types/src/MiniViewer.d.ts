@@ -65,6 +65,7 @@ export default class MiniViewer {
     smiles: string;
     dialog: HTMLDialogElement;
     tooltip: AtomTooltip;
+    controls: HTMLDivElement;
     _expandedShowAllH: boolean;
     _expandedShowValues: boolean;
     _expandedDataset: string;
@@ -104,6 +105,13 @@ export default class MiniViewer {
     _ensureInlineStage(): void;
     /** (Re)draws the enlarged view with the current H/values toggle state. */
     _drawExpanded(): void;
+    /**
+     * Re-colors the controls bar to read against `background` - the same resolved theme
+     * background the dialog/container was just painted with. `null` means a transparent
+     * surface (the `expandable: false` inline path), where the host owns the surface, so
+     * the bar follows it via `currentColor`/`inherit` instead of picking its own colors.
+     */
+    _styleControls(background: any): void;
     /** Builds the "Show all H" / values toggle bar docked to the stage's top-right corner. */
     _buildControls(): HTMLDivElement;
     _closeDialog(): void;
