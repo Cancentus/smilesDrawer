@@ -249,6 +249,19 @@ describe('MiniViewer', () => {
         expect(style.textContent).toContain('margin: auto');
     });
 
+    it('the injected dialog stylesheet forces pointer-events: auto, surviving a locked-out body', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCO');
+        container.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+
+        const style = dom.window.document.getElementById('sd-mini-viewer-style');
+        expect(style.textContent).toContain('pointer-events: auto');
+    });
+
     it('docks the controls bar to the top-left corner', () => {
         const dom = createJSDOM();
         const container = dom.window.document.createElement('div');
