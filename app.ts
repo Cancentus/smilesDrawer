@@ -17,7 +17,7 @@ import {setRdkit, layoutFromSmiles} from './src/RdkitLayout';
  * @typicalname SmilesDrawer
  */
 export default class SmilesDrawerNS {
-    static Version = '3.2.1';
+    static Version = '3.2.2';
 
     static AtomTooltip       = AtomTooltip;
     static AtomValueOverlay  = AtomValueOverlay;

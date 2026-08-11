@@ -236,6 +236,34 @@ describe('MiniViewer', () => {
         expect(lightBar.style.color).toBe('rgb(17, 17, 17)');
     });
 
+    it('the injected dialog stylesheet centers the dialog with margin: auto', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCO');
+        container.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+
+        const style = dom.window.document.getElementById('sd-mini-viewer-style');
+        expect(style.textContent).toContain('margin: auto');
+    });
+
+    it('docks the controls bar to the top-left corner', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCO');
+        container.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+
+        const dialog = dom.window.document.body.querySelector('dialog');
+        const bar = dialog.querySelector('label').parentElement;
+        expect(bar.style.left).toBe('8px');
+        expect(bar.style.right).toBe('');
+    });
+
     it('clicking the backdrop starts the fade-out, then the fallback timer closes it', () => {
         // Fake timers so the 300ms(+50) fallback (jsdom fires no transitionend to close
         // it the normal way) settles inside the test instead of leaking a real timer.

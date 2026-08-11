@@ -77,7 +77,15 @@ function ensureStyle() {
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-        dialog.${DIALOG_CLASS} { opacity: 0; transition: opacity ${FADE_MS}ms ease; }
+        dialog.${DIALOG_CLASS} {
+            /* A modal dialog is centered by the UA stylesheet's own \`dialog { margin: auto }\`
+               working against \`inset: 0\` - but Tailwind (and other resets) zero \`margin\` on
+               \`*\` as an author-origin rule, which beats the UA origin regardless of specificity.
+               Restated here to win that fight and keep the dialog centered. */
+            margin: auto;
+            opacity: 0;
+            transition: opacity ${FADE_MS}ms ease;
+        }
         dialog.${DIALOG_CLASS}.${VISIBLE_CLASS} { opacity: 1; }
         dialog.${DIALOG_CLASS}::backdrop { background: rgba(0, 0, 0, 0.5); opacity: 0; transition: opacity ${FADE_MS}ms ease; }
         dialog.${DIALOG_CLASS}.${VISIBLE_CLASS}::backdrop { opacity: 1; }
@@ -416,7 +424,7 @@ export default class MiniViewer {
         }
     }
 
-    /** Builds the "Show all H" / values toggle bar docked to the stage's top-right corner. */
+    /** Builds the "Show all H" / values toggle bar docked to the stage's top-left corner. */
     _buildControls() {
         const bar = document.createElement('div');
         // background/border color/text color are set per-draw by _styleControls(), same
@@ -424,7 +432,7 @@ export default class MiniViewer {
         Object.assign(bar.style, {
             position:     'absolute',
             top:          '8px',
-            right:        '8px',
+            left:         '8px',
             display:      'inline-flex',
             alignItems:   'center',
             gap:          '12px',

@@ -112,7 +112,7 @@ export default class MiniViewer {
      * the bar follows it via `currentColor`/`inherit` instead of picking its own colors.
      */
     _styleControls(background: any): void;
-    /** Builds the "Show all H" / values toggle bar docked to the stage's top-right corner. */
+    /** Builds the "Show all H" / values toggle bar docked to the stage's top-left corner. */
     _buildControls(): HTMLDivElement;
     _closeDialog(): void;
 }
