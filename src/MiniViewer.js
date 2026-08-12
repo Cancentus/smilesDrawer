@@ -18,6 +18,8 @@ const DIALOG_CLASS   = 'sd-mini-viewer-dialog';
 const VISIBLE_CLASS  = 'sd-visible';
 const STYLE_ID       = 'sd-mini-viewer-style';
 const CONTROLS_CLASS = 'sd-mini-viewer-controls';
+const RAIL_CLASS     = 'sd-mini-viewer-rail';
+const SVG_NS         = 'http://www.w3.org/2000/svg';
 
 function heavyVertices(graph) {
     return graph.vertices.filter(v => v.value.element !== 'H');
@@ -54,6 +56,57 @@ function hexLuminance(hex) {
     const g = (n >> 8) & 0xff;
     const b = n & 0xff;
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+/**
+ * The {background, borderColor, color, colorScheme} a chrome element (the expanded
+ * view's controls bar, or the mini tile's rail) should use to read against a resolved
+ * theme `background`. `null` means a transparent surface (the host owns it), so the
+ * result follows it via `currentColor`/`inherit` instead of picking its own colors.
+ */
+function chromeStyle(background) {
+    const luminance = hexLuminance(background);
+    if (luminance === null) {
+        return {background: 'transparent', borderColor: 'currentColor', color: 'inherit', colorScheme: ''};
+    }
+    if (luminance < 0.5) {
+        return {
+            background:  'rgba(255, 255, 255, 0.10)',
+            borderColor: 'rgba(255, 255, 255, 0.28)',
+            color:       '#ededed',
+            colorScheme: 'dark',
+        };
+    }
+    return {
+        background:  'rgba(255, 255, 255, 0.92)',
+        borderColor: '#ccc',
+        color:       '#111111',
+        colorScheme: 'light',
+    };
+}
+
+/** A small centered glyph in a 24x24 viewBox, filled with `currentColor` - a rail icon. */
+function buildRailIcon(glyph) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '17');
+    svg.setAttribute('height', '17');
+    svg.setAttribute('aria-hidden', 'true');
+
+    const text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('x', '12');
+    text.setAttribute('y', '13');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'middle');
+    Object.assign(text.style, {font: '700 15px inherit', fill: 'currentColor'});
+    text.textContent = glyph;
+
+    svg.append(text);
+    return svg;
+}
+
+function hydrogenTitle(showAllH) {
+    return showAllH ? 'Hide all hydrogens' : 'Show all hydrogens';
 }
 
 /** rAF twice (falling back to a timer) so a CSS transition sees its `from` state painted first. */
@@ -116,6 +169,33 @@ function ensureStyle() {
             padding:    0;
             border:     0;
         }
+        .${RAIL_CLASS} button {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+        }
+        /* Mol*'s viewport controls tell on/off apart by color contrast alone (no size
+           or shape change) - opacity is this rail's cross-theme stand-in for that, since
+           it dims toward whatever's behind it regardless of the resolved theme color. */
+        .${RAIL_CLASS} button svg { opacity: 0.5; }
+        .${RAIL_CLASS} button[aria-pressed="true"] svg { opacity: 1; }
+        /* Hover always wins over the on/off dimming, same as Mol*'s own toggle-on and
+           toggle-off hover rules both resolving to one highlight color. */
+        .${RAIL_CLASS} button:hover {
+            color: #51a2fb;
+            background: rgba(128, 128, 128, 0.15);
+            outline: 1px solid currentColor;
+            outline-offset: -1px;
+        }
+        .${RAIL_CLASS} button:hover svg { opacity: 1; }
     `;
     document.head.appendChild(style);
 }
@@ -123,7 +203,8 @@ function ensureStyle() {
 /**
  * A small, click-to-enlarge 2D structure viewer. Draws `smiles` at a compact size (no
  * explicit hydrogens) into `container`; clicking (or Enter/Space on) the container opens
- * the same structure at standard size in a modal `<dialog>`.
+ * the same structure at standard size in a modal `<dialog>`. The mini tile carries its
+ * own always-visible H/values icon rail, independent of the dialog's checkbox bar.
  *
  * Reuses SmiDrawer for drawing and AtomTooltip/AtomValueOverlay for the enlarged view's
  * hover info and value labels - this class only owns the two size presets and the dialog.
@@ -141,9 +222,9 @@ export default class MiniViewer {
      *        An atom-value bundle (see AtomValueOverlay.parseAtomValueBundle()), applied to
      *        both the mini and the enlarged view.
      * @param {?String}  [options.dataset] Which dataset key of `values` to label with.
-     * @param {Boolean}  [options.showControls=true] Whether to build the expanded dialog's
-     *        own "Show all H"/"Show values" bar. Set false when the host has its own H/values
-     *        UI and wants the dialog to be just the enlarged structure.
+     * @param {Boolean}  [options.showControls=true] Whether to build the mini tile's H/values
+     *        icon rail and the expanded dialog's own "Show all H"/"Show values" bar. Set
+     *        false when the host has its own H/values UI and wants bare structure views.
      * @param {?Function}[options.onRender] `(svg, {mode, drawer}) => void`, called right
      *        after every draw (`mode` is `'mini'` or `'expanded'`), before the tooltip
      *        attaches. For host-specific post-processing (e.g. a bespoke value overlay)
@@ -171,12 +252,16 @@ export default class MiniViewer {
         this.tooltip  = null;
         this.controls = null;
 
-        // State for the enlarged dialog's own H/values toggles - independent of the
-        // mini tile, which always draws compactly. Defaults mirror the playground's
+        // State for the mini tile's own H/values toggles (the rail) and the enlarged
+        // dialog's (the checkbox bar) - independent of each other, since the tile is
+        // compact by design and the dialog is not. Defaults mirror the playground's
         // standard viewer: H labels off, values on, first dataset selected.
+        this._miniShowAllH       = false;
+        this._miniShowValues     = true;
+        this._miniDataset        = this._initialDataset();
         this._expandedShowAllH   = false;
         this._expandedShowValues = true;
-        this._expandedDataset    = this.dataset ?? Object.keys(this.values?.datasets ?? {})[0] ?? null;
+        this._expandedDataset    = this._initialDataset();
 
         this._closing = false;
 
@@ -205,13 +290,13 @@ export default class MiniViewer {
         this.smiles = smiles;
 
         if (!this.expandable) {
-            this._ensureInlineStage();
+            this._ensureStage(() => this._buildControls());
             this._drawExpanded();
             return;
         }
 
-        const drawer = new SmiDrawer({...MINI_OPTIONS, ...this.miniOptions});
-        drawer.draw(smiles, 'svg', this.theme, svg => this._finish(svg, drawer), err => this._fail(err));
+        this._ensureStage(() => this._buildRail());
+        this._drawMini();
     }
 
     /**
@@ -228,8 +313,25 @@ export default class MiniViewer {
         this.stage     = null;
         this.svgHolder = null;
         this.controls  = null;
+        this.rail      = null;
         this._closing  = false;
         this.container.replaceChildren();
+    }
+
+    /** Resolves the dataset an unopened toggle should start on: the option given, else the bundle's first key. */
+    _initialDataset() {
+        return this.dataset ?? Object.keys(this.values?.datasets ?? {})[0] ?? null;
+    }
+
+    /** (Re)draws the mini tile with the current H/values toggle state. */
+    _drawMini() {
+        const options = {...MINI_OPTIONS, ...this.miniOptions};
+        if (this._miniShowAllH) {
+            options.showCarbons = 'all';
+        }
+
+        const drawer = new SmiDrawer(options);
+        drawer.draw(this.smiles, 'svg', this.theme, svg => this._finish(svg, drawer), err => this._fail(err));
     }
 
     _finish(svg, drawer) {
@@ -237,13 +339,14 @@ export default class MiniViewer {
         if (background) {
             this.container.style.backgroundColor = background;
         }
-        this.container.replaceChildren(svg);
-        this._applyValues(svg, drawer, this.dataset);
+        this._styleRail(background);
+        this.svgHolder.replaceChildren(svg);
+        this._applyValues(svg, drawer, this._miniShowValues ? this._miniDataset : null);
         this.onRender?.(svg, {mode: 'mini', drawer});
     }
 
     _fail(err) {
-        this.container.replaceChildren();
+        this.svgHolder.replaceChildren();
         this._reportError(err);
     }
 
@@ -358,13 +461,16 @@ export default class MiniViewer {
     }
 
     /**
-     * Builds the inline stage (svg holder + optional controls) directly in `container`, for
-     * `expandable: false`. Mirrors expand()'s one-time dialog-build block minus the dialog/
-     * fade/backdrop parts. Unlike the dialog, which sizes to its content, this must fill the
-     * host container so the host's own CSS on the SVG (e.g. max-height: 100%) has something
-     * real to resolve against.
+     * Builds a stage (svg holder + optional controls) that fills `container` - shared by
+     * the mini tile and the `expandable: false` inline path, which both need the same
+     * "flex-center within 100%x100%" shape and differ only in which controls they dock
+     * (the rail vs. the checkbox bar). Mirrors expand()'s one-time dialog-build block
+     * minus the dialog/fade/backdrop parts; unlike the dialog, which sizes to its content,
+     * this must fill the host container so the host's own CSS on the SVG (e.g.
+     * max-height: 100%) has something real to resolve against.
+     * @param {() => HTMLElement} buildControls Builds this mode's controls element.
      */
-    _ensureInlineStage() {
+    _ensureStage(buildControls) {
         if (this.stage) {
             return;
         }
@@ -377,7 +483,7 @@ export default class MiniViewer {
         });
         this.stage.append(this.svgHolder);
         if (this.showControls) {
-            this.stage.append(this._buildControls());
+            this.stage.append(buildControls());
         }
         this.container.replaceChildren(this.stage);
     }
@@ -424,31 +530,18 @@ export default class MiniViewer {
      * the bar follows it via `currentColor`/`inherit` instead of picking its own colors.
      */
     _styleControls(background) {
-        if (!this.controls) {
+        if (this.controls) {
+            Object.assign(this.controls.style, chromeStyle(background));
+        }
+    }
+
+    /** Re-colors the mini tile's rail to read against `background` - see chromeStyle(). */
+    _styleRail(background) {
+        if (!this.rail) {
             return;
         }
-        const luminance = hexLuminance(background);
-        if (luminance === null) {
-            Object.assign(this.controls.style, {
-                background: 'transparent', borderColor: 'currentColor', color: 'inherit', colorScheme: '',
-            });
-        }
-        else if (luminance < 0.5) {
-            Object.assign(this.controls.style, {
-                background:  'rgba(255, 255, 255, 0.10)',
-                borderColor: 'rgba(255, 255, 255, 0.28)',
-                color:       '#ededed',
-                colorScheme: 'dark',
-            });
-        }
-        else {
-            Object.assign(this.controls.style, {
-                background:  'rgba(255, 255, 255, 0.92)',
-                borderColor: '#ccc',
-                color:       '#111111',
-                colorScheme: 'light',
-            });
-        }
+        const {color, colorScheme} = chromeStyle(background);
+        Object.assign(this.rail.style, {color, colorScheme});
     }
 
     /** Builds the "Show all H" / values toggle bar docked to the stage's top-left corner. */
@@ -522,6 +615,90 @@ export default class MiniViewer {
 
         label.append(checkbox, document.createTextNode(text));
         return label;
+    }
+
+    /**
+     * Builds the mini tile's H/values toggle rail - small icon buttons pinned to the
+     * stage's left edge, always visible, sized and styled after Mol*'s own viewport
+     * controls (32px square, transparent until hovered) since this rail sits next to a
+     * Mol* viewer in the primary host app. Mini-tile-only: the expanded view keeps its
+     * own checkbox bar (_buildControls()) untouched.
+     */
+    _buildRail() {
+        ensureStyle();
+
+        const rail = document.createElement('div');
+        rail.className = RAIL_CLASS;
+        Object.assign(rail.style, {
+            position:      'absolute',
+            left:          '8px',
+            top:           '8px',
+            display:       'flex',
+            flexDirection: 'column',
+            gap:           '4px',
+            zIndex:        '1',
+        });
+        // The rail sits inside the same element the dialog's click-to-open listener is
+        // on (see the constructor) - stop both interaction paths here so pressing a rail
+        // button can't also trigger expand().
+        rail.addEventListener('click', event => event.stopPropagation());
+        rail.addEventListener('keydown', event => event.stopPropagation());
+        this.rail = rail;
+
+        const hButton = MiniViewer._buildRailButton('H', this._miniShowAllH, (button) => {
+            this._miniShowAllH = !this._miniShowAllH;
+            button.setAttribute('aria-pressed', String(this._miniShowAllH));
+            button.title = hydrogenTitle(this._miniShowAllH);
+            this._drawMini();
+        });
+        hButton.title = hydrogenTitle(this._miniShowAllH);
+        rail.append(hButton);
+
+        const datasetKeys = this.values?.datasets ? Object.keys(this.values.datasets) : [];
+        if (datasetKeys.length > 0) {
+            const vButton = MiniViewer._buildRailButton('#', this._miniShowValues, (button) => {
+                this._cycleMiniDataset(datasetKeys);
+                button.setAttribute('aria-pressed', String(this._miniShowValues));
+                button.title = this._valuesTitle();
+                this._drawMini();
+            });
+            vButton.title = this._valuesTitle();
+            rail.append(vButton);
+        }
+
+        return rail;
+    }
+
+    static _buildRailButton(glyph, pressed, onToggle) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('aria-pressed', String(pressed));
+        button.append(buildRailIcon(glyph));
+        button.addEventListener('click', () => onToggle(button));
+        return button;
+    }
+
+    /** Advances the mini tile's values button through dataset1 -> dataset2 -> ... -> off -> dataset1. */
+    _cycleMiniDataset(keys) {
+        if (this._miniShowValues) {
+            const nextIndex = keys.indexOf(this._miniDataset) + 1;
+            if (nextIndex < keys.length) {
+                this._miniDataset = keys[nextIndex];
+                return;
+            }
+            this._miniShowValues = false;
+            return;
+        }
+        this._miniShowValues = true;
+        this._miniDataset    = keys[0];
+    }
+
+    _valuesTitle() {
+        if (!this._miniShowValues) {
+            return 'Values: off';
+        }
+        const dataset = this.values.datasets[this._miniDataset];
+        return `Values: ${dataset?.label || this._miniDataset}`;
     }
 
     _onDialogClick(event) {
