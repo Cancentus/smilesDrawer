@@ -9,15 +9,19 @@ describe('MiniViewer', () => {
         const container = dom.window.document.createElement('div');
         dom.window.document.body.appendChild(container);
 
+        // Scoped to the drawn structure rather than the whole container, so the count can't
+        // drift with whatever chrome the rail happens to render.
+        const structureGlyphs = () => container.querySelectorAll('svg text').length;
+
         const viewer = new MiniViewer(container);
         viewer.draw('[H]C([H])([H])O');
-        const miniGlyphs = container.querySelectorAll('text').length;
+        const miniGlyphs = structureGlyphs();
 
         // Same SMILES, but with explicit hydrogens turned back on - the mini preset's
         // point is precisely that it draws fewer glyphs than this by default.
         const explicit = new MiniViewer(container, {miniOptions: {explicitHydrogens: true}});
         explicit.draw('[H]C([H])([H])O');
-        const explicitGlyphs = container.querySelectorAll('text').length;
+        const explicitGlyphs = structureGlyphs();
 
         expect(miniGlyphs).toBeGreaterThan(0);
         expect(miniGlyphs).toBeLessThan(explicitGlyphs);
@@ -152,6 +156,57 @@ describe('MiniViewer', () => {
         expect(rail.querySelectorAll('button').length).toBe(2);
     });
 
+    it('docks the rail to the container itself, so host padding can\'t push it inwards', () => {
+        // The regression this guards: the rail used to live inside the stage, a normal block
+        // confined to the container's content box, so a padded host (aidd_frontend's
+        // Ligand2dViewer sets p-4) pushed it 16px further in than Mol*'s equivalent controls.
+        // Docked to the container, its offsets resolve against the padding box instead.
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        container.style.padding = '16px';
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCO');
+
+        const rail = container.querySelector('.sd-mini-viewer-rail');
+        expect(rail.parentElement).toBe(container);
+        expect(rail.style.left).toBe('10px');
+        expect(rail.style.top).toBe('10px');
+        // Absolute offsets need a positioned containing block; the container is the host's
+        // element, so promote it only when it is still static (as AtomTooltip does).
+        expect(container.style.position).toBe('relative');
+    });
+
+    it('leaves an already-positioned host container\'s position alone', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        container.style.position = 'absolute';
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCO');
+
+        expect(container.style.position).toBe('absolute');
+    });
+
+    it('renders the rail glyphs as real text at a px font size, not viewBox-scaled SVG', () => {
+        // A 24-unit viewBox rendered into a 17px box scaled the old SVG <text>'s font-size
+        // down by 17/24, so the number in the source was not the size that rendered.
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const values = {atomOrder: null, datasets: {m1: {label: 'M1', entries: [{atom_index: 0, parts: [{text: '1.0'}]}]}}};
+        const viewer = new MiniViewer(container, {values, dataset: 'm1'});
+        viewer.draw('CCO');
+
+        const glyphs = [...container.querySelectorAll('.sd-mini-viewer-rail button > span')];
+        expect(glyphs.map(el => el.textContent)).toEqual(['H', '#']);
+        expect(glyphs[0].style.fontSize).toBe('18px');
+        expect(container.querySelector('.sd-mini-viewer-rail svg')).toBeNull();
+    });
+
     it('showControls: false omits the mini tile\'s rail too', () => {
         const dom = createJSDOM();
         const container = dom.window.document.createElement('div');
@@ -186,7 +241,8 @@ describe('MiniViewer', () => {
         expect(hButton.getAttribute('aria-pressed')).toBe('false');
         expect(hButton.title).toBe('Show all hydrogens');
 
-        const structureSvg = () => [...container.querySelectorAll('svg')].find(svg => !svg.closest('.sd-mini-viewer-rail'));
+        // The rail's glyphs are plain HTML text, so the only <svg> here is the structure.
+        const structureSvg = () => container.querySelector('svg');
         const glyphsBefore = structureSvg().querySelectorAll('text').length;
 
         hButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));

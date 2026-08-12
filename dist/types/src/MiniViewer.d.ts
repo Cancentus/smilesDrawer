@@ -114,8 +114,17 @@ export default class MiniViewer {
      * this must fill the host container so the host's own CSS on the SVG (e.g.
      * max-height: 100%) has something real to resolve against.
      * @param {() => HTMLElement} buildControls Builds this mode's controls element.
+     * @param {Boolean} [controlsOnContainer=false] Dock the controls to `container` rather
+     *        than to the stage. An absolutely positioned element resolves its offsets
+     *        against its containing block's *padding* box, so container-docked controls
+     *        keep a fixed inset from the host element's visible edge no matter how much
+     *        padding the host sets - whereas the stage is a normal block confined to the
+     *        content box, which pushes stage-docked controls inwards by that padding.
+     *        The mini tile's rail wants the former (it mimics Mol*'s viewport controls,
+     *        which sit a fixed 10px off the panel corner); the expanded view's bar keeps
+     *        the latter, since it's docked inside a dialog that has no host padding.
      */
-    _ensureStage(buildControls: () => HTMLElement): void;
+    _ensureStage(buildControls: () => HTMLElement, controlsOnContainer?: boolean): void;
     /** (Re)draws the enlarged view with the current H/values toggle state. */
     _drawExpanded(): void;
     /**
