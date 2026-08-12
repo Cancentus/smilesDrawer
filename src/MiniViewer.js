@@ -13,10 +13,11 @@ export const MINI_OPTIONS = {
     fontSizeLarge:     9,
 };
 
-const FADE_MS       = 300;
-const DIALOG_CLASS  = 'sd-mini-viewer-dialog';
-const VISIBLE_CLASS = 'sd-visible';
-const STYLE_ID      = 'sd-mini-viewer-style';
+const FADE_MS        = 300;
+const DIALOG_CLASS   = 'sd-mini-viewer-dialog';
+const VISIBLE_CLASS  = 'sd-visible';
+const STYLE_ID       = 'sd-mini-viewer-style';
+const CONTROLS_CLASS = 'sd-mini-viewer-controls';
 
 function heavyVertices(graph) {
     return graph.vertices.filter(v => v.value.element !== 'H');
@@ -95,16 +96,25 @@ function ensureStyle() {
         dialog.${DIALOG_CLASS}.${VISIBLE_CLASS} { opacity: 1; }
         dialog.${DIALOG_CLASS}::backdrop { background: rgba(0, 0, 0, 0.5); opacity: 0; transition: opacity ${FADE_MS}ms ease; }
         dialog.${DIALOG_CLASS}.${VISIBLE_CLASS}::backdrop { opacity: 1; }
-        dialog.${DIALOG_CLASS} select[hidden] {
+        .${CONTROLS_CLASS} select[hidden] {
             /* [hidden]'s UA default is display:none, which drops the dataset <select> from the
                controls bar's flex row entirely - shrinking the row's height whenever "Show
                values" is unchecked, since align-items: center sizes to the tallest *visible*
-               child. Restoring a <select>'s normal display keeps its box in the flex row (same
-               height contribution either way), while visibility: hidden keeps it invisible,
+               child. Restoring a <select>'s normal display keeps its box in the flex row (so
+               the row's height stays put), while visibility: hidden keeps it invisible,
                unclickable, and out of the tab order; the hidden attribute itself remains the
-               authoritative a11y signal regardless of this display override. */
-            display: inline-block;
+               authoritative a11y signal regardless of this display override. Zeroing width
+               (and min-width - a flex item's automatic minimum is min-content, not 0) then
+               collapses the space the select's content would otherwise reserve, so only the
+               height contribution survives. Scoped to the bar's own class rather than
+               dialog.${DIALOG_CLASS} so it also covers the expandable:false inline path,
+               which renders the same bar with no <dialog> ancestor. */
+            display:   inline-block;
             visibility: hidden;
+            width:      0;
+            min-width:  0;
+            padding:    0;
+            border:     0;
         }
     `;
     document.head.appendChild(style);
@@ -443,7 +453,13 @@ export default class MiniViewer {
 
     /** Builds the "Show all H" / values toggle bar docked to the stage's top-left corner. */
     _buildControls() {
+        // Needed here (not just from expand()) so the expandable:false inline path - which
+        // never opens a <dialog> - still gets the select[hidden] height-lock rule below.
+        // Idempotent: a no-op if expand() already injected it.
+        ensureStyle();
+
         const bar = document.createElement('div');
+        bar.className = CONTROLS_CLASS;
         // background/border color/text color are set per-draw by _styleControls(), same
         // "width/style fixed, color set per-draw" pattern as the dialog's border.
         Object.assign(bar.style, {

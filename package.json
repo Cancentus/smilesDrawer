@@ -1,19 +1,19 @@
 {
   "name": "@cancentus/smiles-drawer",
-  "version": "3.2.4",
+  "version": "3.2.5",
   "description": "A SMILES drawer and parser. Generate molecular structure depictions in pure JavaScript.",
   "exports": {
     ".": {
-      "types":   "./dist/types/app.d.ts",
-      "import":  "./dist/smiles-drawer.min.mjs",
+      "types": "./dist/types/app.d.ts",
+      "import": "./dist/smiles-drawer.min.mjs",
       "default": "./dist/smiles-drawer.min.js"
     }
   },
-  "main":   "./dist/smiles-drawer.min.js",
+  "main": "./dist/smiles-drawer.min.js",
   "module": "./dist/smiles-drawer.min.mjs",
   "repository": {
     "type": "git",
-    "url":  "git+https://github.com/Cancentus/smilesDrawer.git"
+    "url": "git+https://github.com/Cancentus/smilesDrawer.git"
   },
   "author": "Daniel Probst, Reymond Group, University of Berne",
   "license": "MIT",
@@ -25,36 +25,35 @@
     "dist"
   ],
   "devDependencies": {
-    "@rdkit/rdkit":             "^2025.3.4-1.0.0",
+    "@rdkit/rdkit": "^2025.3.4-1.0.0",
     "@stylistic/eslint-plugin": "^5.10.0",
-    "esbuild":                  "^0.28.1",
-    "eslint":                   "^10.8.0",
-    "globals":                  "^17.9.0",
-    "jsdom":                    "^30.0.1",
-    "playwright":               "^1.62.1",
-    "typescript":               "^5.8.2",
-    "typescript-eslint":        "^8.66.0",
-    "vitest":                   "^4.1.10"
+    "esbuild": "^0.28.1",
+    "eslint": "^10.8.0",
+    "globals": "^17.9.0",
+    "jsdom": "^30.0.1",
+    "playwright": "^1.62.1",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "chroma-js": "^3.2.0"
   },
   "scripts": {
-    "build":      "node ./scripts/build.mjs",
-    "gallery":    "node ./test/complex/gallery.mjs",
-    "lint":       "npm exec -- eslint",
-    "minify":     "node ./scripts/minify.mjs",
+    "build": "node ./scripts/build.mjs",
+    "gallery": "node ./test/complex/gallery.mjs",
+    "lint": "npm exec -- eslint",
+    "minify": "node ./scripts/minify.mjs",
     "playground": "npm run build && open test/visual/playground.html",
-    "prepare":    "node ./scripts/prepare.mjs",
-    "release":    "npm run typedefs && node ./scripts/release.mjs",
-    "typecheck":  "npm exec -- tsc --noEmit",
-    "typedefs":   "npm exec -- tsc --emitDeclarationOnly",
-    "watch":      "node ./scripts/watch.mjs",
-
-    "test:ci":       "npm exec -- vitest run test/unit test/regression test/complex test/formula-reference test/stereo-reference",
-    "test:complex":  "npm exec -- vitest run test/complex",
+    "prepare": "node ./scripts/prepare.mjs",
+    "release": "npm run typedefs && node ./scripts/release.mjs",
+    "typecheck": "npm exec -- tsc --noEmit",
+    "typedefs": "npm exec -- tsc --emitDeclarationOnly",
+    "watch": "node ./scripts/watch.mjs",
+    "test:ci": "npm exec -- vitest run test/unit test/regression test/complex test/formula-reference test/stereo-reference",
+    "test:complex": "npm exec -- vitest run test/complex",
     "test:formulae": "npm exec -- vitest run test/formula-reference",
-    "test:stereo":   "npm exec -- vitest run test/stereo-reference",
-    "test:unit":     "npm exec -- vitest run test/unit test/regression"
+    "test:stereo": "npm exec -- vitest run test/stereo-reference",
+    "test:unit": "npm exec -- vitest run test/unit test/regression"
   }
 }
