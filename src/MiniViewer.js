@@ -19,7 +19,6 @@ const VISIBLE_CLASS  = 'sd-visible';
 const STYLE_ID       = 'sd-mini-viewer-style';
 const CONTROLS_CLASS = 'sd-mini-viewer-controls';
 const RAIL_CLASS     = 'sd-mini-viewer-rail';
-const SVG_NS         = 'http://www.w3.org/2000/svg';
 
 function heavyVertices(graph) {
     return graph.vertices.filter(v => v.value.element !== 'H');
@@ -85,24 +84,30 @@ function chromeStyle(background) {
     };
 }
 
-/** A small centered glyph in a 24x24 viewBox, filled with `currentColor` - a rail icon. */
+/**
+ * A rail button's glyph: a bold letter sized to read like one of Mol*'s icons.
+ *
+ * 18px is chosen against Mol*'s *ink*, not its icon box: its icon <svg> is 16.8px
+ * (`font-size: 1.2em` of a 14px root, with `width/height: 1em` resolving against that same
+ * 1.2em), but the Material paths inside only span 18-20 of their 24 viewBox units, so the
+ * visible mark is ~12.6-14px. A cap height of ~0.71em puts 18px in the middle of that band.
+ *
+ * Deliberately plain HTML rather than an SVG <text> in a viewBox: user units would then be
+ * scaled by the viewBox -> box ratio, so the font-size in this code wouldn't be the size
+ * that renders. The rail button is already a centering flex container, so this needs no
+ * baseline correction (which is all Mol*'s own `margin-bottom: 3px` on the svg is for).
+ *
+ * Set as longhands, not the `font` shorthand: `inherit` is not a valid <font-family>, so a
+ * `font: 700 18px/1 inherit` shorthand is invalid and dropped whole - silently leaving the
+ * glyph at whatever size it inherited. Longhands also leave `font-family` alone, which is
+ * the inheritance that shorthand was reaching for in the first place.
+ */
 function buildRailIcon(glyph) {
-    const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('width', '17');
-    svg.setAttribute('height', '17');
-    svg.setAttribute('aria-hidden', 'true');
-
-    const text = document.createElementNS(SVG_NS, 'text');
-    text.setAttribute('x', '12');
-    text.setAttribute('y', '13');
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('dominant-baseline', 'middle');
-    Object.assign(text.style, {font: '700 15px inherit', fill: 'currentColor'});
-    text.textContent = glyph;
-
-    svg.append(text);
-    return svg;
+    const span = document.createElement('span');
+    span.setAttribute('aria-hidden', 'true');
+    Object.assign(span.style, {fontWeight: '700', fontSize: '18px', lineHeight: '1'});
+    span.textContent = glyph;
+    return span;
 }
 
 function hydrogenTitle(showAllH) {
@@ -185,8 +190,8 @@ function ensureStyle() {
         /* Mol*'s viewport controls tell on/off apart by color contrast alone (no size
            or shape change) - opacity is this rail's cross-theme stand-in for that, since
            it dims toward whatever's behind it regardless of the resolved theme color. */
-        .${RAIL_CLASS} button svg { opacity: 0.5; }
-        .${RAIL_CLASS} button[aria-pressed="true"] svg { opacity: 1; }
+        .${RAIL_CLASS} button > span { opacity: 0.5; }
+        .${RAIL_CLASS} button[aria-pressed="true"] > span { opacity: 1; }
         /* Hover always wins over the on/off dimming, same as Mol*'s own toggle-on and
            toggle-off hover rules both resolving to one highlight color. */
         .${RAIL_CLASS} button:hover {
@@ -195,7 +200,7 @@ function ensureStyle() {
             outline: 1px solid currentColor;
             outline-offset: -1px;
         }
-        .${RAIL_CLASS} button:hover svg { opacity: 1; }
+        .${RAIL_CLASS} button:hover > span { opacity: 1; }
     `;
     document.head.appendChild(style);
 }
@@ -295,7 +300,7 @@ export default class MiniViewer {
             return;
         }
 
-        this._ensureStage(() => this._buildRail());
+        this._ensureStage(() => this._buildRail(), true);
         this._drawMini();
     }
 
@@ -469,8 +474,17 @@ export default class MiniViewer {
      * this must fill the host container so the host's own CSS on the SVG (e.g.
      * max-height: 100%) has something real to resolve against.
      * @param {() => HTMLElement} buildControls Builds this mode's controls element.
+     * @param {Boolean} [controlsOnContainer=false] Dock the controls to `container` rather
+     *        than to the stage. An absolutely positioned element resolves its offsets
+     *        against its containing block's *padding* box, so container-docked controls
+     *        keep a fixed inset from the host element's visible edge no matter how much
+     *        padding the host sets - whereas the stage is a normal block confined to the
+     *        content box, which pushes stage-docked controls inwards by that padding.
+     *        The mini tile's rail wants the former (it mimics Mol*'s viewport controls,
+     *        which sit a fixed 10px off the panel corner); the expanded view's bar keeps
+     *        the latter, since it's docked inside a dialog that has no host padding.
      */
-    _ensureStage(buildControls) {
+    _ensureStage(buildControls, controlsOnContainer = false) {
         if (this.stage) {
             return;
         }
@@ -482,10 +496,20 @@ export default class MiniViewer {
             display:        'flex', alignItems:     'center', justifyContent: 'center',
         });
         this.stage.append(this.svgHolder);
-        if (this.showControls) {
+        if (this.showControls && !controlsOnContainer) {
             this.stage.append(buildControls());
         }
+        // Must precede the container.append() below - replaceChildren() would drop the
+        // controls if they were added first.
         this.container.replaceChildren(this.stage);
+        if (this.showControls && controlsOnContainer) {
+            // Same static -> relative promotion AtomTooltip.attach() does, for the same
+            // reason: the host owns this element, and absolute children need it positioned.
+            if (window.getComputedStyle(this.container).position === 'static') {
+                this.container.style.position = 'relative';
+            }
+            this.container.append(buildControls());
+        }
     }
 
     /** (Re)draws the enlarged view with the current H/values toggle state. */
@@ -629,10 +653,12 @@ export default class MiniViewer {
 
         const rail = document.createElement('div');
         rail.className = RAIL_CLASS;
+        // 10px/4px are Mol*'s own $control-spacing and inter-button-group margin, so the
+        // rail lines up with a Mol* viewer's controls when the two sit side by side.
         Object.assign(rail.style, {
             position:      'absolute',
-            left:          '8px',
-            top:           '8px',
+            left:          '10px',
+            top:           '10px',
             display:       'flex',
             flexDirection: 'column',
             gap:           '4px',
