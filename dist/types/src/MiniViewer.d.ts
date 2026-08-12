@@ -9,13 +9,15 @@ export namespace MINI_OPTIONS {
 /**
  * A small, click-to-enlarge 2D structure viewer. Draws `smiles` at a compact size (no
  * explicit hydrogens) into `container`; clicking (or Enter/Space on) the container opens
- * the same structure at standard size in a modal `<dialog>`.
+ * the same structure at standard size in a modal `<dialog>`. The mini tile carries its
+ * own always-visible H/values icon rail, independent of the dialog's checkbox bar.
  *
  * Reuses SmiDrawer for drawing and AtomTooltip/AtomValueOverlay for the enlarged view's
  * hover info and value labels - this class only owns the two size presets and the dialog.
  */
 export default class MiniViewer {
     static _buildToggleLabel(text: any, checked: any, onChange: any): HTMLLabelElement;
+    static _buildRailButton(glyph: any, pressed: any, onToggle: any): HTMLButtonElement;
     /**
      * @param {HTMLElement} container Host element the mini SVG is drawn into. Its own
      *        sizing/border is left to the caller; this only sets cursor/role/tabindex.
@@ -28,9 +30,9 @@ export default class MiniViewer {
      *        An atom-value bundle (see AtomValueOverlay.parseAtomValueBundle()), applied to
      *        both the mini and the enlarged view.
      * @param {?String}  [options.dataset] Which dataset key of `values` to label with.
-     * @param {Boolean}  [options.showControls=true] Whether to build the expanded dialog's
-     *        own "Show all H"/"Show values" bar. Set false when the host has its own H/values
-     *        UI and wants the dialog to be just the enlarged structure.
+     * @param {Boolean}  [options.showControls=true] Whether to build the mini tile's H/values
+     *        icon rail and the expanded dialog's own "Show all H"/"Show values" bar. Set
+     *        false when the host has its own H/values UI and wants bare structure views.
      * @param {?Function}[options.onRender] `(svg, {mode, drawer}) => void`, called right
      *        after every draw (`mode` is `'mini'` or `'expanded'`), before the tooltip
      *        attaches. For host-specific post-processing (e.g. a bespoke value overlay)
@@ -66,6 +68,9 @@ export default class MiniViewer {
     dialog: HTMLDialogElement;
     tooltip: AtomTooltip;
     controls: HTMLDivElement;
+    _miniShowAllH: boolean;
+    _miniShowValues: boolean;
+    _miniDataset: string;
     _expandedShowAllH: boolean;
     _expandedShowValues: boolean;
     _expandedDataset: string;
@@ -87,6 +92,11 @@ export default class MiniViewer {
     destroy(): void;
     stage: HTMLDivElement;
     svgHolder: HTMLDivElement;
+    rail: HTMLDivElement;
+    /** Resolves the dataset an unopened toggle should start on: the option given, else the bundle's first key. */
+    _initialDataset(): string;
+    /** (Re)draws the mini tile with the current H/values toggle state. */
+    _drawMini(): void;
     _finish(svg: any, drawer: any): void;
     _fail(err: any): void;
     _reportError(err: any): void;
@@ -96,13 +106,16 @@ export default class MiniViewer {
     /** Fades the dialog out over FADE_MS, then actually closes it. Safe to call more than once. */
     _closeAnimated(): void;
     /**
-     * Builds the inline stage (svg holder + optional controls) directly in `container`, for
-     * `expandable: false`. Mirrors expand()'s one-time dialog-build block minus the dialog/
-     * fade/backdrop parts. Unlike the dialog, which sizes to its content, this must fill the
-     * host container so the host's own CSS on the SVG (e.g. max-height: 100%) has something
-     * real to resolve against.
+     * Builds a stage (svg holder + optional controls) that fills `container` - shared by
+     * the mini tile and the `expandable: false` inline path, which both need the same
+     * "flex-center within 100%x100%" shape and differ only in which controls they dock
+     * (the rail vs. the checkbox bar). Mirrors expand()'s one-time dialog-build block
+     * minus the dialog/fade/backdrop parts; unlike the dialog, which sizes to its content,
+     * this must fill the host container so the host's own CSS on the SVG (e.g.
+     * max-height: 100%) has something real to resolve against.
+     * @param {() => HTMLElement} buildControls Builds this mode's controls element.
      */
-    _ensureInlineStage(): void;
+    _ensureStage(buildControls: () => HTMLElement): void;
     /** (Re)draws the enlarged view with the current H/values toggle state. */
     _drawExpanded(): void;
     /**
@@ -112,8 +125,21 @@ export default class MiniViewer {
      * the bar follows it via `currentColor`/`inherit` instead of picking its own colors.
      */
     _styleControls(background: any): void;
+    /** Re-colors the mini tile's rail to read against `background` - see chromeStyle(). */
+    _styleRail(background: any): void;
     /** Builds the "Show all H" / values toggle bar docked to the stage's top-left corner. */
     _buildControls(): HTMLDivElement;
+    /**
+     * Builds the mini tile's H/values toggle rail - small icon buttons pinned to the
+     * stage's left edge, always visible, sized and styled after Mol*'s own viewport
+     * controls (32px square, transparent until hovered) since this rail sits next to a
+     * Mol* viewer in the primary host app. Mini-tile-only: the expanded view keeps its
+     * own checkbox bar (_buildControls()) untouched.
+     */
+    _buildRail(): HTMLDivElement;
+    /** Advances the mini tile's values button through dataset1 -> dataset2 -> ... -> off -> dataset1. */
+    _cycleMiniDataset(keys: any): void;
+    _valuesTitle(): string;
     _closeDialog(): void;
 }
 import AtomTooltip from './AtomTooltip.js';

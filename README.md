@@ -9,7 +9,7 @@
 
 No server, no images, no templates, just a SMILES 😊
 
-Current Version: **3.2.5**
+Current Version: **3.3.0**
 
 ### Examples in Specific Frameworks
 
@@ -163,6 +163,7 @@ The following options are available:
 | # of overlap resolution iterations                              | overlapResolutionIterations | number                              | 1             |
 | Draw concatenated terminals and pseudo elements                 | compactDrawing              | boolean                             | true          |
 | Draw isomeric SMILES if available                               | isomeric                    | boolean                             | true          |
+| Font family                                                     | fontFamily                  | string                              | 'Arial, Helvetica, sans-serif' |
 | Debug (draw debug information to canvas)                        | debug                       | boolean                             | false         |
 | Color themes                                                    | themes                      | object                              | see below     |
 
@@ -259,12 +260,76 @@ The constructor takes the host element and an options object:
 | `miniOptions`/`expandedOptions` | Molecule options merged over the mini preset / used for the enlarged view. |
 | `theme` | Theme name, as passed to `draw()` (default `'light'`). |
 | `values`/`dataset` | An `AtomValueOverlay` bundle and which of its datasets to label with, applied to both views. |
-| `showControls` | Whether the expanded view builds its own "Show all H"/"Show values" toggle bar (default `true`). Set `false` when the host already has its own H/values UI. |
+| `showControls` | Whether to build the mini tile's H/values icon rail and the expanded dialog's own "Show all H"/"Show values" bar (default `true`). Set `false` when the host already has its own H/values UI. |
 | `onRender` | `(svg, {mode, drawer}) => void`, called after every draw (`mode` is `'mini'` or `'expanded'`), before the tooltip attaches. For host-specific post-processing that a `values` bundle can't express — e.g. a bespoke value overlay with its own positioning/coloring rules. |
 | `onError` | `(err) => void`, called if drawing fails. |
 | `expandable` | Default `true`: click/Enter/Space opens the expanded view in a modal dialog. Set `false` for a host that already has its own dialog around the structure (e.g. a row-click preview) — the expanded view (bigger size, full toggle bar) then renders directly into the host element instead, with no click affordance and no dialog. |
 
 Call `destroy()` to remove its listeners and dialog.
+
+#### Mini tile controls
+
+When `showControls` is true (the default), the mini tile itself carries a small, always-
+visible icon rail pinned to its left edge — independent of the enlarged dialog's own
+checkbox bar, and with its own toggle state:
+
+- **H** toggles carbon labels showing implicit hydrogen counts (`showCarbons: 'all'`), same
+  as the dialog's "Show all H" checkbox.
+- **#** toggles the `values` overlay, and appears only when a `values` bundle with at least
+  one dataset was passed. With more than one dataset, each click cycles to the next dataset,
+  then off, then back to the first — there's no `<select>` on the rail; the button's tooltip
+  names the active dataset (e.g. "Values: pKa (uni)") or "Values: off".
+
+Both toggles redraw only the mini tile and never open the dialog.
+
+### Atom Tooltips and Value Overlays
+
+`SmilesDrawer.AtomTooltip` and `SmilesDrawer.AtomValueOverlay` add per-atom hover info and
+labels to an already-drawn SVG — MiniViewer uses both internally for its enlarged view, but
+either can be used standalone against any SVG produced by `SvgDrawer`/`Drawer`.
+
+`AtomValueOverlay.parseAtomValueBundle(json)` normalizes a plain values payload or a pKa
+prediction payload (auto-detected) into an `AtomValueBundle`:
+
+```javascript
+// Generic shape:
+// { datasets: { <key>: { label, entries: [{ atom_index, parts: [{ text, color?, title? }] }] } } }
+// pKa shape (from a pKa prediction backend) is auto-detected too.
+const bundle = SmilesDrawer.AtomValueOverlay.parseAtomValueBundle(json);
+```
+
+Passing a bundle (plus which `dataset` key to label with) to `MiniViewer` is normally enough —
+it calls `AtomValueOverlay.apply()`/`fitViewBoxToBundle()` for you. For a standalone SVG, call
+those directly, or attach hover rows for all of a bundle's datasets with `AtomTooltip`:
+
+```javascript
+const tooltip = new SmilesDrawer.AtomTooltip(svgElement, { atomValueBundle: bundle });
+tooltip.attach();
+// tooltip.destroy() when the SVG is removed.
+```
+
+`parsePkaDatasets(json)` is the pKa-specific path `parseAtomValueBundle()` delegates to when it
+detects that shape; call it directly only if the payload is already known to be pKa-shaped.
+
+### RDKit CoordGen Layout
+
+smilesDrawer never depends on `@rdkit/rdkit` itself — the host loads the module (and its
+`.wasm` asset) and registers it once via `SmilesDrawer.setRdkit(module)`. Once registered,
+`SmiDrawer.drawMolecule()` (and thus `SmiDrawer.apply()`) automatically lay molecules out
+with RDKit's CoordGen algorithm instead of smilesDrawer's own, with no other code changes.
+
+```javascript
+import initRDKitModule from '@rdkit/rdkit';
+
+const rdkitModule = await initRDKitModule();
+SmilesDrawer.setRdkit(rdkitModule);
+```
+
+For lower-level control — e.g. passing a layout into `SmiDrawer.drawFromLayout()`, or as the
+`presetLayout` argument to `SvgDrawer.draw()`/`Drawer.draw()` — call
+`SmilesDrawer.layoutFromSmiles(smiles, module?)` directly. It returns `null` (never throws) if
+no module is registered, the SMILES is invalid, or RDKit otherwise fails, so callers should
+fall back to the automatic layout in that case.
 
 ### Usage
 

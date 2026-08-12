@@ -138,6 +138,136 @@ describe('MiniViewer', () => {
         expect(dialog.querySelectorAll('.atom-value-overlay text').length).toBeGreaterThan(0);
     });
 
+    it('the mini tile has an H/values icon rail, separate from the dialog\'s checkbox bar', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const values = {atomOrder: null, datasets: {m1: {label: 'Method 1', entries: [{atom_index: 0, parts: [{text: '1.0'}]}]}}};
+        const viewer = new MiniViewer(container, {values, dataset: 'm1'});
+        viewer.draw('CCO');
+
+        const rail = container.querySelector('.sd-mini-viewer-rail');
+        expect(rail).not.toBeNull();
+        expect(rail.querySelectorAll('button').length).toBe(2);
+    });
+
+    it('showControls: false omits the mini tile\'s rail too', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container, {showControls: false});
+        viewer.draw('CCO');
+
+        expect(container.querySelector('.sd-mini-viewer-rail')).toBeNull();
+    });
+
+    it('expandable: false has no mini rail (it renders the expanded view directly)', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container, {expandable: false});
+        viewer.draw('CCO');
+
+        expect(container.querySelector('.sd-mini-viewer-rail')).toBeNull();
+    });
+
+    it('the rail\'s H button redraws the mini tile with all carbons labeled, without opening the dialog', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCCCC');
+
+        const hButton = container.querySelector('.sd-mini-viewer-rail button');
+        expect(hButton.getAttribute('aria-pressed')).toBe('false');
+        expect(hButton.title).toBe('Show all hydrogens');
+
+        const structureSvg = () => [...container.querySelectorAll('svg')].find(svg => !svg.closest('.sd-mini-viewer-rail'));
+        const glyphsBefore = structureSvg().querySelectorAll('text').length;
+
+        hButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+
+        expect(hButton.getAttribute('aria-pressed')).toBe('true');
+        expect(hButton.title).toBe('Hide all hydrogens');
+        expect(structureSvg().querySelectorAll('text').length).toBeGreaterThan(glyphsBefore);
+
+        // Rail clicks are nested inside the same element the dialog opens from - must
+        // not also trigger expand().
+        expect(dom.window.document.body.querySelector('dialog')).toBeNull();
+    });
+
+    it('the rail\'s values button cycles dataset -> dataset -> off -> dataset', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const values = {
+            atomOrder: null,
+            datasets: {
+                m1: {label: 'Method 1', entries: [{atom_index: 0, parts: [{text: '4.2'}]}]},
+                m2: {label: 'Method 2', entries: [{atom_index: 0, parts: [{text: '5.1'}]}]},
+            },
+        };
+        const viewer = new MiniViewer(container, {values, dataset: 'm1'});
+        viewer.draw('CCO');
+
+        const vButton = container.querySelectorAll('.sd-mini-viewer-rail button')[1];
+        const valueCount = () => container.querySelectorAll('.atom-value-overlay text').length;
+
+        expect(vButton.getAttribute('aria-pressed')).toBe('true');
+        expect(vButton.title).toBe('Values: Method 1');
+        expect(valueCount()).toBeGreaterThan(0);
+
+        vButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        expect(vButton.getAttribute('aria-pressed')).toBe('true');
+        expect(vButton.title).toBe('Values: Method 2');
+        expect(valueCount()).toBeGreaterThan(0);
+
+        vButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        expect(vButton.getAttribute('aria-pressed')).toBe('false');
+        expect(vButton.title).toBe('Values: off');
+        expect(valueCount()).toBe(0);
+
+        vButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        expect(vButton.getAttribute('aria-pressed')).toBe('true');
+        expect(vButton.title).toBe('Values: Method 1');
+        expect(valueCount()).toBeGreaterThan(0);
+    });
+
+    it('a single-dataset bundle makes the rail\'s values button a plain on/off toggle', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const values = {atomOrder: null, datasets: {m1: {label: 'Method 1', entries: [{atom_index: 0, parts: [{text: '4.2'}]}]}}};
+        const viewer = new MiniViewer(container, {values, dataset: 'm1'});
+        viewer.draw('CCO');
+
+        const vButton = container.querySelectorAll('.sd-mini-viewer-rail button')[1];
+        const valueCount = () => container.querySelectorAll('.atom-value-overlay text').length;
+
+        expect(valueCount()).toBeGreaterThan(0);
+        vButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        expect(valueCount()).toBe(0);
+        vButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        expect(valueCount()).toBeGreaterThan(0);
+    });
+
+    it('the rail has only the H button when no values bundle is given', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCO');
+
+        expect(container.querySelectorAll('.sd-mini-viewer-rail button').length).toBe(1);
+    });
+
     it('onRender is called for both the mini and expanded draws, for host-specific post-processing', () => {
         const dom = createJSDOM();
         const container = dom.window.document.createElement('div');
