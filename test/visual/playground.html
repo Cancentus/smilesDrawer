@@ -85,10 +85,25 @@
         gap: 12px;
       }
 
-      /* The explicit display rules above would otherwise defeat the hidden attribute. */
-      #valuesControls[hidden],
-      #valuesDetail[hidden] {
+      /* The explicit display rule above would otherwise defeat the hidden attribute. */
+      #valuesControls[hidden] {
         display: none;
+      }
+
+      /* Unlike #valuesControls (the no-data case, which should genuinely collapse),
+         #valuesDetail toggles with "Show values" and must keep contributing its height
+         to #viewerControls's flex row so the capsule doesn't resize - display stays
+         inline-flex (beating [hidden]'s UA display:none) while visibility hides it and
+         width/min-width/padding/border collapse the space its content (select + legend)
+         would otherwise reserve. overflow: hidden keeps those now-overflowing children
+         from creating a selectable/clickable region outside the collapsed box. */
+      #valuesDetail[hidden] {
+        visibility: hidden;
+        width: 0;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
       }
 
       #status {

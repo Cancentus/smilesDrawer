@@ -262,7 +262,7 @@ describe('MiniViewer', () => {
         expect(style.textContent).toContain('pointer-events: auto');
     });
 
-    it('the injected dialog stylesheet keeps a hidden dataset select in flex flow, so the controls bar height stays constant', () => {
+    it('the injected stylesheet keeps a hidden dataset select in flex flow (height locked) while collapsing its width', () => {
         const dom = createJSDOM();
         const container = dom.window.document.createElement('div');
         dom.window.document.body.appendChild(container);
@@ -272,9 +272,31 @@ describe('MiniViewer', () => {
         container.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
 
         const style = dom.window.document.getElementById('sd-mini-viewer-style');
-        expect(style.textContent).toContain('select[hidden]');
-        expect(style.textContent).toContain('display: inline-block');
+        expect(style.textContent).toContain('.sd-mini-viewer-controls select[hidden]');
+        expect(style.textContent).toContain('display:   inline-block');
         expect(style.textContent).toContain('visibility: hidden');
+        expect(style.textContent).toContain('width:      0');
+        expect(style.textContent).toContain('min-width:  0');
+    });
+
+    it('injects the same controls stylesheet for the expandable:false inline path, with no dialog involved', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const values = {atomOrder: null, datasets: {m1: {label: 'M1', entries: [{atom_index: 0, parts: [{text: '1.0'}]}]}}};
+        const viewer = new MiniViewer(container, {expandable: false, values, dataset: 'm1'});
+        viewer.draw('CCO');
+
+        expect(dom.window.document.querySelector('dialog')).toBeNull();
+
+        const style = dom.window.document.getElementById('sd-mini-viewer-style');
+        expect(style).not.toBeNull();
+        expect(style.textContent).toContain('.sd-mini-viewer-controls select[hidden]');
+
+        const bar = container.querySelector('.sd-mini-viewer-controls');
+        expect(bar).not.toBeNull();
+        expect(bar.querySelector('select')).not.toBeNull();
     });
 
     it('docks the controls bar to the top-left corner', () => {
