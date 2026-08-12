@@ -262,6 +262,21 @@ describe('MiniViewer', () => {
         expect(style.textContent).toContain('pointer-events: auto');
     });
 
+    it('the injected dialog stylesheet keeps a hidden dataset select in flex flow, so the controls bar height stays constant', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCO');
+        container.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+
+        const style = dom.window.document.getElementById('sd-mini-viewer-style');
+        expect(style.textContent).toContain('select[hidden]');
+        expect(style.textContent).toContain('display: inline-block');
+        expect(style.textContent).toContain('visibility: hidden');
+    });
+
     it('docks the controls bar to the top-left corner', () => {
         const dom = createJSDOM();
         const container = dom.window.document.createElement('div');
