@@ -68,6 +68,8 @@ export default class MiniViewer {
     dialog: HTMLDialogElement;
     tooltip: AtomTooltip;
     controls: HTMLDivElement;
+    rail: HTMLDivElement;
+    valueTypeLabel: HTMLDivElement;
     _miniShowAllH: boolean;
     _miniShowValues: boolean;
     _miniDataset: string;
@@ -92,7 +94,6 @@ export default class MiniViewer {
     destroy(): void;
     stage: HTMLDivElement;
     svgHolder: HTMLDivElement;
-    rail: HTMLDivElement;
     /** Resolves the dataset an unopened toggle should start on: the option given, else the bundle's first key. */
     _initialDataset(): string;
     /** (Re)draws the mini tile with the current H/values toggle state. */
@@ -113,7 +114,8 @@ export default class MiniViewer {
      * minus the dialog/fade/backdrop parts; unlike the dialog, which sizes to its content,
      * this must fill the host container so the host's own CSS on the SVG (e.g.
      * max-height: 100%) has something real to resolve against.
-     * @param {() => HTMLElement} buildControls Builds this mode's controls element.
+     * @param {() => (HTMLElement|DocumentFragment)} buildControls Builds this mode's controls.
+     *        A fragment lets the mini path dock chrome to two opposite corners at once.
      * @param {Boolean} [controlsOnContainer=false] Dock the controls to `container` rather
      *        than to the stage. An absolutely positioned element resolves its offsets
      *        against its containing block's *padding* box, so container-docked controls
@@ -124,7 +126,7 @@ export default class MiniViewer {
      *        which sit a fixed 10px off the panel corner); the expanded view's bar keeps
      *        the latter, since it's docked inside a dialog that has no host padding.
      */
-    _ensureStage(buildControls: () => HTMLElement, controlsOnContainer?: boolean): void;
+    _ensureStage(buildControls: () => (HTMLElement | DocumentFragment), controlsOnContainer?: boolean): void;
     /** (Re)draws the enlarged view with the current H/values toggle state. */
     _drawExpanded(): void;
     /**
@@ -134,20 +136,42 @@ export default class MiniViewer {
      * the bar follows it via `currentColor`/`inherit` instead of picking its own colors.
      */
     _styleControls(background: any): void;
-    /** Re-colors the mini tile's rail to read against `background` - see chromeStyle(). */
+    /**
+     * Re-colors the mini tile's chrome (rail + value-type caption) to read against
+     * `background` - see chromeStyle(). Only the text color is taken: both dock straight
+     * onto the drawing with no surface of their own.
+     */
     _styleRail(background: any): void;
     /** Builds the "Show all H" / values toggle bar docked to the stage's top-left corner. */
     _buildControls(): HTMLDivElement;
     /**
+     * The mini tile's chrome: the toggle rail in the top-left corner and the active value
+     * type's name in the bottom-left. Returned as a fragment so `_ensureStage()` can append
+     * both to the container in one go (they dock to opposite corners, so they can't share a
+     * wrapper without that wrapper spanning the tile and swallowing its clicks).
+     */
+    _buildMiniChrome(): DocumentFragment;
+    /**
+     * Names the dataset the value labels currently come from, as plain text in the tile's
+     * bottom-left corner. The rail's `#` button already carries this in its `title`, but a
+     * tooltip only answers the question after you think to ask it - with several pKa methods
+     * cycling through one button, which one is on screen has to be readable at a glance.
+     */
+    _buildValueTypeLabel(): HTMLDivElement;
+    /** Syncs the bottom-left caption with the values toggle - blank when values are off. */
+    _updateValueTypeLabel(): void;
+    /**
      * Builds the mini tile's H/values toggle rail - small icon buttons pinned to the
-     * stage's left edge, always visible, sized and styled after Mol*'s own viewport
-     * controls (32px square, transparent until hovered) since this rail sits next to a
-     * Mol* viewer in the primary host app. Mini-tile-only: the expanded view keeps its
+     * container's top-left corner, always visible, sized and styled after Mol*'s own
+     * viewport controls (32px square, transparent until hovered) since this rail sits next
+     * to a Mol* viewer in the primary host app. Mini-tile-only: the expanded view keeps its
      * own checkbox bar (_buildControls()) untouched.
      */
     _buildRail(): HTMLDivElement;
     /** Advances the mini tile's values button through dataset1 -> dataset2 -> ... -> off -> dataset1. */
     _cycleMiniDataset(keys: any): void;
+    /** The active dataset's display name - its `label`, falling back to its key. */
+    _valuesLabel(): string;
     _valuesTitle(): string;
     _closeDialog(): void;
 }
