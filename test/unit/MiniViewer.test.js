@@ -203,8 +203,88 @@ describe('MiniViewer', () => {
 
         const glyphs = [...container.querySelectorAll('.sd-mini-viewer-rail button > span')];
         expect(glyphs.map(el => el.textContent)).toEqual(['H', '#']);
-        expect(glyphs[0].style.fontSize).toBe('18px');
+        expect(glyphs[0].style.fontSize).toBe('12px');
         expect(container.querySelector('.sd-mini-viewer-rail svg')).toBeNull();
+    });
+
+    it('names the active value type as plain text in the bottom-left corner', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        container.style.padding = '16px';
+        dom.window.document.body.appendChild(container);
+
+        const values = {
+            atomOrder: null,
+            datasets: {
+                m1: {label: 'Method 1', entries: [{atom_index: 0, parts: [{text: '4.2'}]}]},
+                m2: {label: 'Method 2', entries: [{atom_index: 0, parts: [{text: '5.1'}]}]},
+            },
+        };
+        const viewer = new MiniViewer(container, {values, dataset: 'm1'});
+        viewer.draw('CCO');
+
+        const caption = container.querySelector('.sd-mini-viewer-value-type');
+        expect(caption.textContent).toBe('Method 1');
+        // Docked to the container like the rail, so host padding can't shift it either.
+        expect(caption.parentElement).toBe(container);
+        expect(caption.style.left).toBe('10px');
+        expect(caption.style.bottom).toBe('10px');
+        expect(caption.style.top).toBe('');
+        // A caption, not a control: it must not eat clicks meant for the enlarge affordance.
+        expect(caption.style.pointerEvents).toBe('none');
+        expect(caption.querySelector('svg')).toBeNull();
+    });
+
+    it('the value-type caption follows the values button through the cycle', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const values = {
+            atomOrder: null,
+            datasets: {
+                m1: {label: 'Method 1', entries: [{atom_index: 0, parts: [{text: '4.2'}]}]},
+                m2: {label: 'Method 2', entries: [{atom_index: 0, parts: [{text: '5.1'}]}]},
+            },
+        };
+        const viewer = new MiniViewer(container, {values, dataset: 'm1'});
+        viewer.draw('CCO');
+
+        const caption = () => container.querySelector('.sd-mini-viewer-value-type').textContent;
+        const vButton = container.querySelectorAll('.sd-mini-viewer-rail button')[1];
+        const click = () => vButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+
+        expect(caption()).toBe('Method 1');
+        click();
+        expect(caption()).toBe('Method 2');
+        click();
+        expect(caption()).toBe(''); // values off - nothing to name
+        click();
+        expect(caption()).toBe('Method 1');
+    });
+
+    it('falls back to the dataset key when it carries no label', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const values = {atomOrder: null, datasets: {unipka: {entries: [{atom_index: 0, parts: [{text: '4.2'}]}]}}};
+        const viewer = new MiniViewer(container, {values, dataset: 'unipka'});
+        viewer.draw('CCO');
+
+        expect(container.querySelector('.sd-mini-viewer-value-type').textContent).toBe('unipka');
+    });
+
+    it('omits the value-type caption entirely when there are no values', () => {
+        const dom = createJSDOM();
+        const container = dom.window.document.createElement('div');
+        dom.window.document.body.appendChild(container);
+
+        const viewer = new MiniViewer(container);
+        viewer.draw('CCO');
+
+        expect(container.querySelector('.sd-mini-viewer-value-type')).toBeNull();
+        expect(container.querySelector('.sd-mini-viewer-rail')).not.toBeNull();
     });
 
     it('showControls: false omits the mini tile\'s rail too', () => {

@@ -18,7 +18,8 @@ const DIALOG_CLASS   = 'sd-mini-viewer-dialog';
 const VISIBLE_CLASS  = 'sd-visible';
 const STYLE_ID       = 'sd-mini-viewer-style';
 const CONTROLS_CLASS = 'sd-mini-viewer-controls';
-const RAIL_CLASS     = 'sd-mini-viewer-rail';
+const RAIL_CLASS       = 'sd-mini-viewer-rail';
+const VALUE_TYPE_CLASS = 'sd-mini-viewer-value-type';
 
 function heavyVertices(graph) {
     return graph.vertices.filter(v => v.value.element !== 'H');
@@ -85,12 +86,9 @@ function chromeStyle(background) {
 }
 
 /**
- * A rail button's glyph: a bold letter sized to read like one of Mol*'s icons.
- *
- * 18px is chosen against Mol*'s *ink*, not its icon box: its icon <svg> is 16.8px
- * (`font-size: 1.2em` of a 14px root, with `width/height: 1em` resolving against that same
- * 1.2em), but the Material paths inside only span 18-20 of their 24 viewBox units, so the
- * visible mark is ~12.6-14px. A cap height of ~0.71em puts 18px in the middle of that band.
+ * A rail button's glyph: a bold letter, deliberately set a third smaller than the ~18px that
+ * would match the ink of Mol*'s Material icons. A letterform at an icon's full size reads as
+ * heavier than the line art it sits next to, so this trades exact parity for even weight.
  *
  * Deliberately plain HTML rather than an SVG <text> in a viewBox: user units would then be
  * scaled by the viewBox -> box ratio, so the font-size in this code wouldn't be the size
@@ -98,14 +96,14 @@ function chromeStyle(background) {
  * baseline correction (which is all Mol*'s own `margin-bottom: 3px` on the svg is for).
  *
  * Set as longhands, not the `font` shorthand: `inherit` is not a valid <font-family>, so a
- * `font: 700 18px/1 inherit` shorthand is invalid and dropped whole - silently leaving the
+ * `font: 700 12px/1 inherit` shorthand is invalid and dropped whole - silently leaving the
  * glyph at whatever size it inherited. Longhands also leave `font-family` alone, which is
  * the inheritance that shorthand was reaching for in the first place.
  */
 function buildRailIcon(glyph) {
     const span = document.createElement('span');
     span.setAttribute('aria-hidden', 'true');
-    Object.assign(span.style, {fontWeight: '700', fontSize: '18px', lineHeight: '1'});
+    Object.assign(span.style, {fontWeight: '700', fontSize: '12px', lineHeight: '1'});
     span.textContent = glyph;
     return span;
 }
@@ -252,10 +250,12 @@ export default class MiniViewer {
         this.onError          = options.onError || null;
         this.expandable       = options.expandable ?? true;
 
-        this.smiles   = null;
-        this.dialog   = null;
-        this.tooltip  = null;
-        this.controls = null;
+        this.smiles         = null;
+        this.dialog         = null;
+        this.tooltip        = null;
+        this.controls       = null;
+        this.rail           = null;
+        this.valueTypeLabel = null;
 
         // State for the mini tile's own H/values toggles (the rail) and the enlarged
         // dialog's (the checkbox bar) - independent of each other, since the tile is
@@ -300,7 +300,7 @@ export default class MiniViewer {
             return;
         }
 
-        this._ensureStage(() => this._buildRail(), true);
+        this._ensureStage(() => this._buildMiniChrome(), true);
         this._drawMini();
     }
 
@@ -315,11 +315,12 @@ export default class MiniViewer {
             this.dialog.remove();
             this.dialog = null;
         }
-        this.stage     = null;
-        this.svgHolder = null;
-        this.controls  = null;
-        this.rail      = null;
-        this._closing  = false;
+        this.stage          = null;
+        this.svgHolder      = null;
+        this.controls       = null;
+        this.rail           = null;
+        this.valueTypeLabel = null;
+        this._closing       = false;
         this.container.replaceChildren();
     }
 
@@ -473,7 +474,8 @@ export default class MiniViewer {
      * minus the dialog/fade/backdrop parts; unlike the dialog, which sizes to its content,
      * this must fill the host container so the host's own CSS on the SVG (e.g.
      * max-height: 100%) has something real to resolve against.
-     * @param {() => HTMLElement} buildControls Builds this mode's controls element.
+     * @param {() => (HTMLElement|DocumentFragment)} buildControls Builds this mode's controls.
+     *        A fragment lets the mini path dock chrome to two opposite corners at once.
      * @param {Boolean} [controlsOnContainer=false] Dock the controls to `container` rather
      *        than to the stage. An absolutely positioned element resolves its offsets
      *        against its containing block's *padding* box, so container-docked controls
@@ -559,13 +561,18 @@ export default class MiniViewer {
         }
     }
 
-    /** Re-colors the mini tile's rail to read against `background` - see chromeStyle(). */
+    /**
+     * Re-colors the mini tile's chrome (rail + value-type caption) to read against
+     * `background` - see chromeStyle(). Only the text color is taken: both dock straight
+     * onto the drawing with no surface of their own.
+     */
     _styleRail(background) {
-        if (!this.rail) {
-            return;
-        }
         const {color, colorScheme} = chromeStyle(background);
-        Object.assign(this.rail.style, {color, colorScheme});
+        for (const element of [this.rail, this.valueTypeLabel]) {
+            if (element) {
+                Object.assign(element.style, {color, colorScheme});
+            }
+        }
     }
 
     /** Builds the "Show all H" / values toggle bar docked to the stage's top-left corner. */
@@ -642,10 +649,60 @@ export default class MiniViewer {
     }
 
     /**
+     * The mini tile's chrome: the toggle rail in the top-left corner and the active value
+     * type's name in the bottom-left. Returned as a fragment so `_ensureStage()` can append
+     * both to the container in one go (they dock to opposite corners, so they can't share a
+     * wrapper without that wrapper spanning the tile and swallowing its clicks).
+     */
+    _buildMiniChrome() {
+        const chrome = document.createDocumentFragment();
+        chrome.append(this._buildRail());
+        if (this.values?.datasets && Object.keys(this.values.datasets).length > 0) {
+            chrome.append(this._buildValueTypeLabel());
+        }
+        return chrome;
+    }
+
+    /**
+     * Names the dataset the value labels currently come from, as plain text in the tile's
+     * bottom-left corner. The rail's `#` button already carries this in its `title`, but a
+     * tooltip only answers the question after you think to ask it - with several pKa methods
+     * cycling through one button, which one is on screen has to be readable at a glance.
+     */
+    _buildValueTypeLabel() {
+        const label = document.createElement('div');
+        label.className = VALUE_TYPE_CLASS;
+        Object.assign(label.style, {
+            position:      'absolute',
+            left:          '10px',
+            bottom:        '10px',
+            fontSize:      '11px',
+            lineHeight:    '1',
+            opacity:       '0.7',
+            // Purely a caption: let clicks through to the tile's own enlarge affordance
+            // rather than making a dead spot in the corner.
+            pointerEvents: 'none',
+            userSelect:    'none',
+            zIndex:        '1',
+        });
+        this.valueTypeLabel = label;
+        this._updateValueTypeLabel();
+        return label;
+    }
+
+    /** Syncs the bottom-left caption with the values toggle - blank when values are off. */
+    _updateValueTypeLabel() {
+        if (!this.valueTypeLabel) {
+            return;
+        }
+        this.valueTypeLabel.textContent = this._miniShowValues ? this._valuesLabel() : '';
+    }
+
+    /**
      * Builds the mini tile's H/values toggle rail - small icon buttons pinned to the
-     * stage's left edge, always visible, sized and styled after Mol*'s own viewport
-     * controls (32px square, transparent until hovered) since this rail sits next to a
-     * Mol* viewer in the primary host app. Mini-tile-only: the expanded view keeps its
+     * container's top-left corner, always visible, sized and styled after Mol*'s own
+     * viewport controls (32px square, transparent until hovered) since this rail sits next
+     * to a Mol* viewer in the primary host app. Mini-tile-only: the expanded view keeps its
      * own checkbox bar (_buildControls()) untouched.
      */
     _buildRail() {
@@ -686,6 +743,7 @@ export default class MiniViewer {
                 this._cycleMiniDataset(datasetKeys);
                 button.setAttribute('aria-pressed', String(this._miniShowValues));
                 button.title = this._valuesTitle();
+                this._updateValueTypeLabel();
                 this._drawMini();
             });
             vButton.title = this._valuesTitle();
@@ -719,12 +777,13 @@ export default class MiniViewer {
         this._miniDataset    = keys[0];
     }
 
+    /** The active dataset's display name - its `label`, falling back to its key. */
+    _valuesLabel() {
+        return this.values.datasets[this._miniDataset]?.label || this._miniDataset;
+    }
+
     _valuesTitle() {
-        if (!this._miniShowValues) {
-            return 'Values: off';
-        }
-        const dataset = this.values.datasets[this._miniDataset];
-        return `Values: ${dataset?.label || this._miniDataset}`;
+        return this._miniShowValues ? `Values: ${this._valuesLabel()}` : 'Values: off';
     }
 
     _onDialogClick(event) {

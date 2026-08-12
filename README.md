@@ -9,7 +9,7 @@
 
 No server, no images, no templates, just a SMILES 😊
 
-Current Version: **3.3.1**
+Current Version: **3.3.2**
 
 ### Examples in Specific Frameworks
 
@@ -270,7 +270,7 @@ Call `destroy()` to remove its listeners and dialog.
 #### Mini tile controls
 
 When `showControls` is true (the default), the mini tile itself carries a small, always-
-visible icon rail pinned to its left edge — independent of the enlarged dialog's own
+visible icon rail pinned to its top-left corner — independent of the enlarged dialog's own
 checkbox bar, and with its own toggle state:
 
 - **H** toggles carbon labels showing implicit hydrogen counts (`showCarbons: 'all'`), same
@@ -280,7 +280,12 @@ checkbox bar, and with its own toggle state:
   then off, then back to the first — there's no `<select>` on the rail; the button's tooltip
   names the active dataset (e.g. "Values: pKa (uni)") or "Values: off".
 
-Both toggles redraw only the mini tile and never open the dialog.
+While values are shown, the active dataset's name is also printed as plain text in the tile's
+bottom-left corner, so which of several datasets is on screen is readable without hovering.
+
+Both toggles redraw only the mini tile and never open the dialog. The rail and the caption sit
+a fixed 10px off the host element's corners regardless of any padding it sets, matching the
+inset Mol\*'s viewport controls use — so a 2D tile and a Mol\* viewer side by side line up.
 
 ### Atom Tooltips and Value Overlays
 
