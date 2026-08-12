@@ -95,6 +95,17 @@ function ensureStyle() {
         dialog.${DIALOG_CLASS}.${VISIBLE_CLASS} { opacity: 1; }
         dialog.${DIALOG_CLASS}::backdrop { background: rgba(0, 0, 0, 0.5); opacity: 0; transition: opacity ${FADE_MS}ms ease; }
         dialog.${DIALOG_CLASS}.${VISIBLE_CLASS}::backdrop { opacity: 1; }
+        dialog.${DIALOG_CLASS} select[hidden] {
+            /* [hidden]'s UA default is display:none, which drops the dataset <select> from the
+               controls bar's flex row entirely - shrinking the row's height whenever "Show
+               values" is unchecked, since align-items: center sizes to the tallest *visible*
+               child. Restoring a <select>'s normal display keeps its box in the flex row (same
+               height contribution either way), while visibility: hidden keeps it invisible,
+               unclickable, and out of the tab order; the hidden attribute itself remains the
+               authoritative a11y signal regardless of this display override. */
+            display: inline-block;
+            visibility: hidden;
+        }
     `;
     document.head.appendChild(style);
 }
